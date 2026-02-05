@@ -551,3 +551,172 @@ Evaluate each response and return ONLY valid JSON:
                 logger.warning("Request was blocked by Gemini safety filters")
             
             return dict(GEMINI_ERROR_FALLBACK)
+
+
+    # ============= LESSON VOICE PRACTICE METHODS (Phase 2.9) =============
+    
+    def get_lesson_voice_response(self, user_message: str, lesson, chat_history_objects=None, user_profile=None):
+        """
+        Generate AI response for Voice Practice mode within a specific lesson.
+        Uses FULL logic from get_chat_response (corrections, translations, explanations)
+        but restricts conversation to lesson topic.
+        """
+        if not self.client:
+            return {
+                **GEMINI_ERROR_FALLBACK,
+                "response": "Gemini API Key is missing. Please configure it in .env.",
+                "translation": "Ключ Gemini API відсутній. Будь ласка, налаштуйте його в .env.",
+            }
+
+        # Build lesson context
+        vocabulary_list = lesson.vocabulary_list[:30] if lesson.vocabulary_list else []
+        lesson_context = f"""
+LESSON CONTEXT (STRICT TOPIC RESTRICTION):
+- Title: {lesson.title}
+- Grammar Focus: {lesson.grammar_focus}
+- Key Vocabulary: {', '.join(vocabulary_list) if vocabulary_list else 'General'}
+- Objectives: {', '.join(lesson.voice_practice_prompts[:3]) if lesson.voice_practice_prompts else 'Practice speaking'}
+"""
+
+        # User info
+        user_info = ""
+        if user_profile:
+            user_info = f"""
+Student Level: {user_profile.level}
+Interests: {', '.join(user_profile.interests) if user_profile.interests else 'English learning'}
+Native Language: {user_profile.native_language}
+"""
+
+        system_instruction = f"""You are an expert AI English Tutor conducting Voice Practice for a specific lesson.
+
+{user_info}
+
+{lesson_context}
+
+TOPIC RESTRICTION:
+- Stay STRICTLY within the lesson topic and objectives above
+- If user asks unrelated questions, politely redirect: "That's interesting, but let's focus on [lesson topic]. You can use the general voice assistant for free conversation."
+- Use lesson vocabulary when possible
+- Focus on the grammar point being taught
+
+INTERACTION TRIGGERS (same as general chat):
+- "[ACTION: explain_detailed_ua]": Deep linguistic explanation of English mistakes IN UKRAINIAN in "explanation" field. Set phase to "detailed_explanation".
+- "[ACTION: explain_detailed_en]": Deep linguistic explanation of English mistakes IN ENGLISH in "explanation" field. Set phase to "detailed_explanation".
+- "[ACTION: practice_task]": Generate SHORT practice exercise for the specific mistake. Set phase to "practice".
+- "[ACTION: continue_lesson]": Natural transition back to lesson. Set phase to "initial".
+
+CORE RULES (IDENTICAL to general chat):
+1. LANGUAGE DISTINCTION: Accurately distinguish Ukrainian vs English.
+2. RESPONSE LANGUAGE - ALWAYS RESPOND IN ENGLISH (even if user writes Ukrainian).
+3. MIXED LANGUAGE HANDLING:
+   - If input has BOTH Ukrainian AND English, provide "full_english_version" with entire message in perfect English.
+   - Example: "I like читати книги" → full_english_version: "I like to read books"
+4. SELECTIVE CORRECTION:
+   - ONLY correct English grammar/spelling/vocabulary errors.
+   - DO NOT correct Ukrainian. Ukrainian is student's communication tool.
+5. RESPONSE STRUCTURE:
+   - "response": ALWAYS in English
+   - "translation": ALWAYS provide Ukrainian translation of your response
+   - "full_english_version": If mixed language, provide full English version
+   - "corrected_text": If pure English WITH mistakes, provide corrected version
+   - "explanation": Brief Ukrainian explanation of English mistakes (or null)
+   - "has_errors": true if English mistakes exist, false otherwise
+6. STYLE: Natural human tutor. Encouraging. Appropriate vocabulary for level.
+7. FORMATTING: Plain text only (no markdown, no bold, no asterisks).
+
+Output MUST be JSON:
+{{
+    "corrected_text": "Perfect English if PURE English WITH MISTAKES, else null",
+    "full_english_version": "Full English version if mixed language, else null",
+    "explanation": "Ukrainian explanation of English mistakes, or null",
+    "response": "Your tutor response in English (ALWAYS English)",
+    "translation": "Ukrainian translation of your response (ALWAYS provide)",
+    "phase": "initial" | "detailed_explanation" | "practice",
+    "has_errors": true/false,
+    "should_finish": false
+}}
+
+Set "should_finish": true after 5-7 meaningful exchanges to suggest completing the session.
+"""
+
+        return self._generate_chat_response(user_message, system_instruction, chat_history_objects or [], user_profile)
+
+
+    def evaluate_lesson_voice_practice(self, session, lesson, user_profile=None):
+        """
+        Evaluate a completed Voice Practice session based on lesson objectives.
+        Returns detailed scores and feedback.
+        """
+        # Build dialogue from session messages
+        dialogue = []
+        messages = session.messages.all().order_by('created_at')
+        for msg in messages:
+            role = 'user' if msg.role == 'user' else 'ai'
+            dialogue.append({
+                'role': role,
+                'content': msg.content
+            })
+
+        # Build evaluation prompt
+        objectives = lesson.voice_practice_prompts if lesson.voice_practice_prompts else ["Practice speaking"]
+        vocabulary_list = lesson.vocabulary_list[:30] if lesson.vocabulary_list else []
+        
+        evaluation_prompt = f"""Evaluate this Voice Practice session for the lesson: "{lesson.title}"
+
+LESSON OBJECTIVES:
+{json.dumps(objectives, ensure_ascii=False)}
+
+GRAMMAR FOCUS: {lesson.grammar_focus}
+KEY VOCABULARY: {', '.join(vocabulary_list) if vocabulary_list else 'General'}
+
+DIALOGUE:
+{json.dumps(dialogue, ensure_ascii=False, indent=2)}
+
+Evaluate on these criteria (0-10 each):
+1. pronunciation_score: Clarity and accuracy (estimate from text patterns)
+2. grammar_score: Correct grammar usage, especially the lesson's focus
+3. vocabulary_score: Use of lesson vocabulary
+4. fluency_score: Natural flow, sentence complexity
+5. task_completion_score: Did they meet lesson objectives?
+
+RESPONSE FORMAT (JSON):
+{{
+    "overall_score": 8.5,
+    "pronunciation_score": 8.0,
+    "grammar_score": 9.0,
+    "vocabulary_score": 8.5,
+    "fluency_score": 8.0,
+    "task_completion_score": 9.0,
+    "feedback": "Overall feedback in Ukrainian",
+    "strengths": ["Strength 1", "Strength 2"],
+    "improvements": ["Area to improve 1", "Area to improve 2"]
+}}
+"""
+
+        try:
+            client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            response = client.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=evaluation_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                    response_mime_type="application/json"
+                )
+            )
+            
+            result = json.loads(response.text)
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error evaluating lesson voice practice: {e}", exc_info=True)
+            return {
+                "overall_score": 7.0,
+                "pronunciation_score": 7.0,
+                "grammar_score": 7.0,
+                "vocabulary_score": 7.0,
+                "fluency_score": 7.0,
+                "task_completion_score": 7.0,
+                "feedback": "Дякую за практику! Продовжуйте вправлятися.",
+                "strengths": ["Хороша спроба"],
+                "improvements": ["Продовжуйте практикувати"]
+            }

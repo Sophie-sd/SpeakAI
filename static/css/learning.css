@@ -966,49 +966,7 @@
     gap: 0.5rem;
 }
 
-.message-wrapper {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.message-wrapper.sent {
-    justify-content: flex-end;
-}
-
-.message-wrapper.received {
-    justify-content: flex-start;
-}
-
-.message {
-    max-width: 70%;
-    padding: 0.75rem 1rem;
-    border-radius: 12px;
-    line-height: 1.5;
-}
-
-.message.sent {
-    background: #ff4081;
-    color: white;
-    border-bottom-right-radius: 4px;
-}
-
-.message.received {
-    background: #f0f0f0;
-    color: #333;
-    border-bottom-left-radius: 4px;
-}
-
-.message .content {
-    word-wrap: break-word;
-    word-break: break-word;
-}
-
-.message .meta {
-    font-size: 0.75rem;
-    margin-top: 0.5rem;
-    opacity: 0.7;
-}
+{# Chat styling moved to chat.css to avoid conflicts with modal #}
 
 .chat-input-area {
     padding: 1rem;
@@ -1214,4 +1172,71 @@
         height: 120px;
         font-size: 2rem;
     }
+}
+
+/* ============= MESSAGE DETAILS (Translation, Corrections, Explanations) ============= */
+
+.message .translation,
+.message .correction,
+.message .full-english,
+.message .explanation {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.message .translation-toggle,
+.message .explanation-toggle {
+    background: transparent;
+    border: 1px solid #4a90e2;
+    color: #4a90e2;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.message .translation-toggle:hover,
+.message .explanation-toggle:hover {
+    background: #4a90e2;
+    color: white;
+}
+
+.message .translation-text,
+.message .explanation-text {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(74, 144, 226, 0.1);
+    border-radius: 8px;
+    color: #333;
+}
+
+.message .translation-text.show,
+.message .explanation-text.show {
+    max-height: 500px;
+}
+
+.message .correction {
+    padding: 0.5rem 0.75rem;
+    background: rgba(46, 213, 115, 0.15);
+    border-left: 3px solid #2ed573;
+    border-radius: 4px;
+    color: #27ae60;
+}
+
+.message .full-english {
+    padding: 0.5rem 0.75rem;
+    background: rgba(74, 144, 226, 0.15);
+    border-left: 3px solid #4a90e2;
+    border-radius: 4px;
+    color: #2980b9;
+}
+
+.message .correction strong,
+.message .full-english strong {
+    display: block;
+    margin-bottom: 0.25rem;
 }

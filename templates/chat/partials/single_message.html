@@ -49,7 +49,7 @@
             {% endif %}
 
             {# Action buttons #}
-            {% include 'chat/partials/action_buttons.html' with phase=message.transcript corrected_text=message.corrected_text full_english_version=message.full_english_version user_message=user_message.content explanation=message.explanation session_id=message.session.id send_url=send_message_url %}
+            {% include 'chat/partials/action_buttons.html' with phase=message.transcript corrected_text=message.corrected_text full_english_version=message.full_english_version user_message=user_message.content explanation=message.explanation session_id=message.session.id send_url=send_message_url target_id=target_id %}
         {% endif %}
 
         {# Image block #}

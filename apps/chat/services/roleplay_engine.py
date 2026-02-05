@@ -38,7 +38,7 @@ class RolePlayEngine:
             lesson_context: Контекст уроку (grammar_focus, vocabulary, theory)
         
         Returns:
-            Dict з greeting повідомленням від AI
+            Dict з greeting повідомленням від AI + translation, correction, explanation
         """
         system_prompt = self._build_scenario_prompt(scenario, user_level, user_profile, lesson_context)
         
@@ -46,6 +46,9 @@ class RolePlayEngine:
             logger.error("RolePlayEngine: Gemini client not initialized")
             return {
                 'ai_message': "Hello! Let's practice English together.",
+                'translation': "Привіт! Давайте практикуватимемо англійську мову разом.",
+                'corrected_text': None,
+                'explanation': None,
                 'error': 'No API client available',
                 'success': False
             }
@@ -55,7 +58,8 @@ class RolePlayEngine:
             chat = self.client.chats.create(
                 model=self.model_name,
                 config=types.GenerateContentConfig(
-                    system_instruction=system_prompt
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json"
                 )
             )
             
@@ -66,21 +70,45 @@ class RolePlayEngine:
                 logger.warning("Empty response from Gemini for role-play start")
                 return {
                     'ai_message': "Hello! Let's practice English together.",
+                    'translation': "Привіт! Давайте практикуватимемо англійську мову разом.",
+                    'corrected_text': None,
+                    'explanation': None,
                     'error': 'Empty response',
                     'success': False
                 }
             
-            return {
-                'ai_message': response.text,
-                'chat_session': chat,  # Зберігаємо для продовження
-                'scenario_name': scenario.get('setting', 'Role-play'),
-                'success': True
-            }
+            # Parse JSON response
+            try:
+                result_data = json.loads(response.text)
+                return {
+                    'ai_message': result_data.get('response', response.text),
+                    'translation': result_data.get('translation', ''),
+                    'corrected_text': result_data.get('corrected_text'),
+                    'explanation': result_data.get('explanation'),
+                    'chat_session': chat,
+                    'scenario_name': scenario.get('setting', 'Role-play'),
+                    'success': True
+                }
+            except json.JSONDecodeError:
+                # Fallback: if AI returns plain text instead of JSON
+                logger.warning("Role-play response was not valid JSON, treating as plain text")
+                return {
+                    'ai_message': response.text,
+                    'translation': '',
+                    'corrected_text': None,
+                    'explanation': None,
+                    'chat_session': chat,
+                    'scenario_name': scenario.get('setting', 'Role-play'),
+                    'success': True
+                }
         
         except AttributeError as e:
             logger.error(f"Error accessing role-play response structure: {e}", exc_info=True)
             return {
                 'ai_message': "Hello! Let's practice English together.",
+                'translation': "Привіт! Давайте практикуватимемо англійську мову разом.",
+                'corrected_text': None,
+                'explanation': None,
                 'error': str(e),
                 'success': False
             }
@@ -88,6 +116,9 @@ class RolePlayEngine:
             logger.error(f"Unexpected error starting role-play: {e}", exc_info=True)
             return {
                 'ai_message': "Hello! Let's practice English together.",
+                'translation': "Привіт! Давайте практикуватимемо англійську мову разом.",
+                'corrected_text': None,
+                'explanation': None,
                 'error': str(e),
                 'success': False
             }
@@ -126,7 +157,7 @@ DIFFICULTY LEVEL ({difficulty}):
 INSTRUCTIONS:
 1. Stay in character throughout the conversation
 2. React naturally to what the user says
-3. If user makes grammar mistakes, respond naturally but DON'T correct them immediately
+3. If user makes grammar mistakes, respond naturally and NOTE them for correction
 4. Keep responses short (2-3 sentences max)
 5. Ask follow-up questions to keep conversation going
 6. Adapt to user's English level
@@ -135,6 +166,29 @@ INSTRUCTIONS:
 
 EVALUATION (internal):
 Track: grammar accuracy, vocabulary usage, fluency, task completion
+
+LANGUAGE HANDLING (CRITICAL):
+1. USER CAN WRITE IN UKRAINIAN - this is NORMAL and ALLOWED
+2. Ukrainian is the student's native language and communication tool
+3. ALWAYS understand and accept Ukrainian input - never refuse it
+4. ALWAYS respond in English (stay in character)
+5. ALWAYS provide Ukrainian translation in "translation" field
+6. If user writes ONLY Ukrainian, respond naturally in character (in English)
+7. If user mixes Ukrainian and English, note the English parts in "corrected_text" if there are errors
+8. DO NOT say "I don't speak Ukrainian" - you DO understand it
+9. DO NOT ask user to speak English - they can use Ukrainian freely
+10. Example:
+    - User: "Привіт! Я хочу coffee please"
+    - You (in character): "Hello! Of course, what size would you like?"
+    - Translation: "Привіт! Звичайно, який розмір ви хочете?"
+
+OUTPUT FORMAT - ALWAYS respond in JSON (even if user writes Ukrainian):
+{{
+    "response": "Your in-character response in English",
+    "translation": "Ukrainian translation of your response",
+    "corrected_text": "Corrected version of user's English (if there are errors), or null",
+    "explanation": "Brief Ukrainian explanation of grammar mistakes (if any), or null"
+}}
 
 Begin the scenario with a greeting appropriate to your role."""
         
@@ -169,12 +223,15 @@ Important: If user goes off-topic or tries to discuss something unrelated to les
             user_message: Повідомлення користувача
         
         Returns:
-            Dict з відповіддю AI
+            Dict з відповіддю AI + translation, correction, explanation
         """
         if not chat_session:
             logger.error("Continue dialogue called with no chat session")
             return {
                 'ai_message': "I'm sorry, the conversation session was lost. Could you start again?",
+                'translation': "Мені дуже жаль, сесія розмови була втрачена. Можна почати заново?",
+                'corrected_text': None,
+                'explanation': None,
                 'error': 'No chat session',
                 'success': False
             }
@@ -186,18 +243,41 @@ Important: If user goes off-topic or tries to discuss something unrelated to les
                 logger.warning("Empty response from Gemini for role-play continuation")
                 return {
                     'ai_message': "I'm sorry, I didn't catch that. Could you repeat?",
+                    'translation': "Мені дуже жаль, я не чув. Можете повторити?",
+                    'corrected_text': None,
+                    'explanation': None,
                     'error': 'Empty response',
                     'success': False
                 }
             
-            return {
-                'ai_message': response.text,
-                'success': True
-            }
+            # Parse JSON response
+            try:
+                result_data = json.loads(response.text)
+                return {
+                    'ai_message': result_data.get('response', response.text),
+                    'translation': result_data.get('translation', ''),
+                    'corrected_text': result_data.get('corrected_text'),
+                    'explanation': result_data.get('explanation'),
+                    'success': True
+                }
+            except json.JSONDecodeError:
+                # Fallback: if AI returns plain text instead of JSON
+                logger.warning("Role-play continuation was not valid JSON, treating as plain text")
+                return {
+                    'ai_message': response.text,
+                    'translation': '',
+                    'corrected_text': None,
+                    'explanation': None,
+                    'success': True
+                }
+        
         except AttributeError as e:
             logger.error(f"Error accessing role-play dialogue response: {e}", exc_info=True)
             return {
                 'ai_message': "I'm sorry, I didn't catch that. Could you repeat?",
+                'translation': "Мені дуже жаль, я не чув. Можете повторити?",
+                'corrected_text': None,
+                'explanation': None,
                 'error': str(e),
                 'success': False
             }
@@ -205,6 +285,9 @@ Important: If user goes off-topic or tries to discuss something unrelated to les
             logger.error(f"Unexpected error in role-play dialogue: {e}", exc_info=True)
             return {
                 'ai_message': "I'm sorry, I didn't catch that. Could you repeat?",
+                'translation': "Мені дуже жаль, я не чув. Можете повторити?",
+                'corrected_text': None,
+                'explanation': None,
                 'error': str(e),
                 'success': False
             }
@@ -276,7 +359,8 @@ Important: If user goes off-topic or tries to discuss something unrelated to les
             chat = self.client.chats.create(
                 model=self.model_name,
                 config=types.GenerateContentConfig(
-                    system_instruction=system_prompt
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json"
                 ),
                 history=history
             )

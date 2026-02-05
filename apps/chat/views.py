@@ -6,6 +6,7 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 import json
+import logging
 from .models import ChatSession, ChatMessage, Module, Lesson, UserLessonProgress, UserModuleProgress, RolePlaySession
 from .services.gemini import GeminiService
 from .services.chat_helpers import (
@@ -16,6 +17,8 @@ from .services.chat_helpers import (
 )
 from apps.users.decorators import paid_user_required, onboarding_required
 from .services.roleplay_engine import RolePlayEngine
+
+logger = logging.getLogger(__name__)
 
 @login_required
 @paid_user_required
@@ -269,11 +272,22 @@ def send_message(request):
     service = GeminiService()
     previous_history = get_chat_history(session, exclude_message_id=user_msg.id)
     
-    response_text = service.get_chat_response(
-        content, 
-        chat_history_objects=previous_history, 
-        user_profile=request.user
-    )
+    # Check if this session is linked to a lesson (for voice practice or role-play context)
+    if session.lesson:
+        # Use lesson-restricted response for topic boundary enforcement
+        response_text = service.get_lesson_voice_response(
+            user_message=content,
+            lesson=session.lesson,
+            chat_history_objects=previous_history,
+            user_profile=request.user
+        )
+    else:
+        # Use general chat response for free conversation
+        response_text = service.get_chat_response(
+            content, 
+            chat_history_objects=previous_history, 
+            user_profile=request.user
+        )
     
     # Save AI message using helper
     ai_msg = create_ai_message(session, response_text, source_type='text')
@@ -443,6 +457,9 @@ def lesson_detail(request, lesson_id):
 @require_POST
 def start_role_play(request, lesson_id):
     """Почати рольову гру для уроку"""
+    from apps.voice.services.speech import SpeechService
+    from apps.chat.services.chat_helpers import create_ai_message
+    
     lesson = get_object_or_404(Lesson, id=lesson_id)
     user = request.user
     
@@ -509,15 +526,54 @@ def start_role_play(request, lesson_id):
         messages_count=1
     )
     
+    # CREATE ChatSession for rendering (for consistent message display)
+    chat_session = ChatSession.objects.create(
+        user=user,
+        lesson=lesson,
+        session_type='roleplay_voice',
+        title=f"Role-Play: {lesson.role_play_scenario_name}",
+        is_active=True
+    )
+    
+    # Generate TTS audio for initial message
+    speech_service = SpeechService()
+    try:
+        audio_bytes = speech_service.synthesize_speech(result['ai_message'])
+        filename = f"rp_{session.id}_init.mp3"
+        audio_url = speech_service.save_audio_file(audio_bytes, filename)
+    except Exception:
+        audio_url = None
+    
+    # Save initial AI message to ChatMessage for rendering
+    ai_response_dict = {
+        'response': result.get('ai_message', ''),
+        'translation': result.get('translation'),  # Now from RolePlayEngine
+        'explanation': result.get('explanation'),  # Now from RolePlayEngine
+        'corrected_text': result.get('corrected_text'),  # Now from RolePlayEngine
+        'full_english_version': None,
+        'phase': 'initial',
+        'has_errors': False
+    }
+    
+    ai_msg = create_ai_message(
+        chat_session,
+        ai_response_dict,
+        source_type='voice',
+        audio_url=audio_url
+    )
+    
     return JsonResponse({
         'session_id': session.id,
         'ai_message': result['ai_message'],
         'initial_message': {
+            'id': ai_msg.id,
             'role': 'model',
             'content': result['ai_message']
         },
         'scenario_name': lesson.role_play_scenario_name,
-        'continued': False
+        'continued': False,
+        'audio_url': audio_url,
+        'chat_session_id': chat_session.id  # For linking future messages
     })
 
 
@@ -527,6 +583,7 @@ def start_role_play(request, lesson_id):
 def continue_role_play(request, session_id):
     """Продовжити рольову гру (Phase 1.3 - з відновленням контексту)"""
     from apps.chat.services.roleplay_engine import RolePlayEngine
+    from apps.chat.services.chat_helpers import create_user_message, create_ai_message
     
     session = get_object_or_404(RolePlaySession, id=session_id, user=request.user)
     
@@ -587,9 +644,44 @@ def continue_role_play(request, session_id):
         session.messages_count += 2
         session.save()
         
+        # GET or CREATE ChatSession for rendering
+        chat_session, _ = ChatSession.objects.get_or_create(
+            user=session.user,
+            lesson=session.lesson,
+            session_type='roleplay_voice',
+            is_active=True,
+            defaults={'title': f"Role-Play: {session.scenario_name}"}
+        )
+        
+        # Save user message to ChatMessage
+        user_msg = create_user_message(
+            chat_session,
+            user_message,
+            source_type='text'
+        )
+        
+        # Build AI response dict for helper
+        ai_response_dict = {
+            'response': result.get('ai_message', ''),
+            'translation': result.get('translation'),  # From RolePlayEngine
+            'explanation': result.get('explanation'),  # From RolePlayEngine
+            'corrected_text': result.get('corrected_text'),  # From RolePlayEngine
+            'full_english_version': None,
+            'phase': 'initial',
+            'has_errors': False
+        }
+        
+        # Save AI message to ChatMessage
+        ai_msg = create_ai_message(
+            chat_session,
+            ai_response_dict,
+            source_type='text'
+        )
+        
         return JsonResponse({
             'ai_message': ai_message,
-            'success': True
+            'success': True,
+            'message_id': ai_msg.id  # For rendering via server partial
         })
         
     except Exception as e:
@@ -913,4 +1005,503 @@ def get_quiz_results(request, attempt_id):
         results = QuizEngine.get_quiz_results(attempt)
         return JsonResponse(results)
     except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ============= LESSON VOICE PRACTICE VIEWS (Phase 2.9) =============
+
+@login_required
+@paid_user_required
+@require_POST
+@csrf_protect
+def start_lesson_voice_practice(request, lesson_id):
+    """
+    Start or resume Voice Practice session for a lesson.
+    Creates/resumes ChatSession and returns initial AI message with audio.
+    """
+    from apps.voice.services.speech import SpeechService
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    lesson = get_object_or_404(Lesson, id=lesson_id, is_active=True)
+    user = request.user
+    
+    # Check for existing active session
+    existing_session = ChatSession.objects.filter(
+        user=user,
+        lesson=lesson,
+        session_type='lesson_voice_practice',
+        is_active=True
+    ).first()
+    
+    if existing_session:
+        # Resume existing session
+        messages = existing_session.messages.all().order_by('created_at')
+        messages_list = []
+        for msg in messages:
+            messages_list.append({
+                'id': msg.id,
+                'role': msg.role,
+                'content': msg.content,
+                'translation': msg.translation,
+                'audio_url': msg.audio_url if hasattr(msg, 'audio_url') else None
+            })
+        
+        return JsonResponse({
+            'session_id': existing_session.id,
+            'messages': messages_list,
+            'continued': True
+        })
+    
+    # Create new session
+    session = ChatSession.objects.create(
+        user=user,
+        lesson=lesson,
+        title=f"Voice Practice: {lesson.title}",
+        session_type='lesson_voice_practice',
+        is_active=True
+    )
+    
+    # Generate initial AI greeting
+    gemini = GeminiService()
+    initial_prompt = f"Start the voice practice session. Greet the student and introduce the first task from the lesson objectives."
+    
+    try:
+        ai_response = gemini.get_lesson_voice_response(
+            user_message=initial_prompt,
+            lesson=lesson,
+            chat_history_objects=[],
+            user_profile=user
+        )
+        
+        ai_content = ai_response.get('response', 'Hello! Let\'s start practicing English.')
+        translation = ai_response.get('translation', '')
+        
+        # Generate TTS audio
+        speech_service = SpeechService()
+        audio_bytes = speech_service.synthesize_speech(ai_content)
+        filename = f"vp_{session.id}_init.mp3"
+        audio_url = speech_service.save_audio_file(audio_bytes, filename)
+        
+        # Save AI message using helper
+        from apps.chat.services.chat_helpers import create_ai_message
+        ai_message = create_ai_message(
+            session,
+            ai_response,
+            source_type='voice',
+            audio_url=audio_url
+        )
+        
+        return JsonResponse({
+            'session_id': session.id,
+            'initial_message': {
+                'id': ai_message.id,
+                'role': 'model',
+                'content': ai_content,
+                'translation': translation,
+                'audio_url': audio_url
+            },
+            'continued': False
+        })
+        
+    except Exception as e:
+        logger.error(f"Error starting voice practice: {e}", exc_info=True)
+        session.delete()  # Clean up failed session
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@paid_user_required
+@require_POST
+@csrf_protect
+def process_lesson_voice_audio(request, lesson_id):
+    """
+    Process audio input for Voice Practice: STT → AI response → TTS
+    Uses FULL voice chat logic (corrections, translations, explanations)
+    """
+    from apps.voice.services.speech import SpeechService
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    lesson = get_object_or_404(Lesson, id=lesson_id, is_active=True)
+    user = request.user
+    
+    # Get active session
+    session = ChatSession.objects.filter(
+        user=user,
+        lesson=lesson,
+        session_type='lesson_voice_practice',
+        is_active=True
+    ).first()
+    
+    if not session:
+        return JsonResponse({'error': 'No active voice practice session'}, status=400)
+    
+    # Get audio file from request
+    audio_file = request.FILES.get('audio')
+    if not audio_file:
+        return JsonResponse({'error': 'No audio file provided'}, status=400)
+    
+    try:
+        speech_service = SpeechService()
+        
+        # STT: Convert audio to text
+        user_text = speech_service.transcribe_audio(audio_file)
+        if not user_text or 'Error' in user_text:
+            return JsonResponse({'error': 'Could not transcribe audio'}, status=400)
+        
+        # Save user message using helper
+        from apps.chat.services.chat_helpers import create_user_message
+        user_message = create_user_message(
+            session,
+            user_text,
+            source_type='voice',
+            transcript=user_text
+        )
+        
+        # Get chat history using helper
+        from apps.chat.services.chat_helpers import get_chat_history
+        history = get_chat_history(session, exclude_message_id=user_message.id)
+        
+        # Get AI response with FULL logic
+        gemini = GeminiService()
+        ai_response = gemini.get_lesson_voice_response(
+            user_message=user_text,
+            lesson=lesson,
+            chat_history_objects=history,
+            user_profile=user
+        )
+        
+        ai_content = ai_response.get('response', 'I see.')
+        translation = ai_response.get('translation', '')
+        corrected_text = ai_response.get('corrected_text', '')
+        explanation = ai_response.get('explanation', '')
+        full_english_version = ai_response.get('full_english_version', '')
+        phase = ai_response.get('phase', 'initial')
+        has_errors = ai_response.get('has_errors', False)
+        should_finish = ai_response.get('should_finish', False)
+        
+        # TTS: Convert AI response to audio
+        audio_bytes = speech_service.synthesize_speech(ai_content)
+        filename = f"vp_{session.id}_{user_message.id}.mp3"
+        audio_url = speech_service.save_audio_file(audio_bytes, filename)
+        
+        # Save AI message using helper
+        from apps.chat.services.chat_helpers import create_ai_message
+        ai_msg = create_ai_message(
+            session,
+            ai_response,
+            source_type='voice',
+            audio_url=audio_url
+        )
+        
+        return JsonResponse({
+            'user_text': user_text,
+            'transcript': user_text,
+            'ai_message': ai_content,
+            'translation': translation,
+            'corrected_text': corrected_text,
+            'explanation': explanation,
+            'full_english_version': full_english_version,
+            'audio_url': audio_url,
+            'phase': phase,
+            'has_errors': has_errors,
+            'should_finish': should_finish,
+            'message_id': ai_msg.id,
+            'session_id': session.id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing audio: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@paid_user_required
+@require_POST
+@csrf_protect
+def process_lesson_voice_text(request, lesson_id):
+    """
+    Process text input for Voice Practice (alternative to audio)
+    Uses FULL voice chat logic (corrections, translations, explanations)
+    """
+    from apps.voice.services.speech import SpeechService
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    lesson = get_object_or_404(Lesson, id=lesson_id, is_active=True)
+    user = request.user
+    
+    # Get active session
+    session = ChatSession.objects.filter(
+        user=user,
+        lesson=lesson,
+        session_type='lesson_voice_practice',
+        is_active=True
+    ).first()
+    
+    if not session:
+        return JsonResponse({'error': 'No active voice practice session'}, status=400)
+    
+    # Get text from request
+    user_text = request.POST.get('text', '').strip()
+    if not user_text:
+        return JsonResponse({'error': 'No text provided'}, status=400)
+    
+    try:
+        # Save user message using helper
+        from apps.chat.services.chat_helpers import create_user_message
+        user_message = create_user_message(
+            session,
+            user_text,
+            source_type='voice'
+        )
+        
+        # Get chat history using helper
+        from apps.chat.services.chat_helpers import get_chat_history
+        history = get_chat_history(session, exclude_message_id=user_message.id)
+        
+        # Get AI response with FULL logic
+        gemini = GeminiService()
+        ai_response = gemini.get_lesson_voice_response(
+            user_message=user_text,
+            lesson=lesson,
+            chat_history_objects=history,
+            user_profile=user
+        )
+        
+        ai_content = ai_response.get('response', 'I see.')
+        translation = ai_response.get('translation', '')
+        corrected_text = ai_response.get('corrected_text', '')
+        explanation = ai_response.get('explanation', '')
+        full_english_version = ai_response.get('full_english_version', '')
+        phase = ai_response.get('phase', 'initial')
+        has_errors = ai_response.get('has_errors', False)
+        should_finish = ai_response.get('should_finish', False)
+        
+        # TTS: Convert AI response to audio
+        speech_service = SpeechService()
+        audio_bytes = speech_service.synthesize_speech(ai_content)
+        filename = f"vp_{session.id}_{user_message.id}.mp3"
+        audio_url = speech_service.save_audio_file(audio_bytes, filename)
+        
+        # Save AI message using helper
+        from apps.chat.services.chat_helpers import create_ai_message
+        ai_msg = create_ai_message(
+            session,
+            ai_response,
+            source_type='voice',
+            audio_url=audio_url
+        )
+        
+        return JsonResponse({
+            'ai_message': ai_content,
+            'translation': translation,
+            'corrected_text': corrected_text,
+            'explanation': explanation,
+            'full_english_version': full_english_version,
+            'audio_url': audio_url,
+            'phase': phase,
+            'has_errors': has_errors,
+            'should_finish': should_finish,
+            'message_id': ai_msg.id,
+            'session_id': session.id,
+            'user_message': user_text
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing text: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@paid_user_required
+@require_POST
+@csrf_protect
+def evaluate_lesson_voice_practice(request, lesson_id):
+    """
+    Evaluate completed Voice Practice session and update user progress
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    lesson = get_object_or_404(Lesson, id=lesson_id, is_active=True)
+    user = request.user
+    
+    # Get active session
+    session = ChatSession.objects.filter(
+        user=user,
+        lesson=lesson,
+        session_type='lesson_voice_practice',
+        is_active=True
+    ).first()
+    
+    if not session:
+        return JsonResponse({'error': 'No active voice practice session'}, status=400)
+    
+    try:
+        # Evaluate session
+        gemini = GeminiService()
+        evaluation = gemini.evaluate_lesson_voice_practice(
+            session=session,
+            lesson=lesson,
+            user_profile=user
+        )
+        
+        # Mark session as completed
+        session.is_active = False
+        session.save()
+        
+        # Update user progress
+        progress, created = UserLessonProgress.objects.get_or_create(
+            user=user,
+            lesson=lesson
+        )
+        
+        progress.voice_practice_completed = True
+        progress.voice_practice_score = evaluation.get('overall_score', 7.0)
+        progress.voice_practice_feedback = evaluation
+        progress.save()
+        
+        # Update overall score
+        progress.calculate_overall_score()
+        
+        return JsonResponse({
+            'success': True,
+            'evaluation': evaluation
+        })
+        
+    except Exception as e:
+        logger.error(f"Error evaluating voice practice: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@paid_user_required
+@require_POST
+@csrf_protect
+def continue_roleplay_voice(request, session_id):
+    """
+    Continue Role-Play session with voice input (audio → STT → AI → TTS)
+    Saves to ChatMessage for consistent rendering with rich UI
+    """
+    from apps.voice.services.speech import SpeechService
+    from apps.chat.services.chat_helpers import create_user_message, create_ai_message
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    session = get_object_or_404(RolePlaySession, id=session_id, user=request.user)
+    
+    # Get audio file
+    audio_file = request.FILES.get('audio')
+    if not audio_file:
+        return JsonResponse({'error': 'No audio file provided'}, status=400)
+    
+    try:
+        speech_service = SpeechService()
+        
+        # STT
+        user_text = speech_service.transcribe_audio(audio_file)
+        if not user_text:
+            return JsonResponse({'error': 'Could not transcribe audio'}, status=400)
+        
+        # Continue Role-Play dialogue
+        engine = RolePlayEngine()
+        
+        # Add user message to history
+        session.messages_history.append({
+            'role': 'user',
+            'content': user_text
+        })
+        
+        # Restore session
+        chat = engine.restore_session(
+            system_prompt=session.system_prompt,
+            messages_history=session.messages_history
+        )
+        
+        if not chat:
+            return JsonResponse({'error': 'Failed to restore session'}, status=500)
+        
+        # Get AI response
+        result = engine.continue_dialogue(chat, user_text)
+        if not result.get('success'):
+            return JsonResponse({'error': result.get('error', 'AI response failed')}, status=500)
+        
+        ai_message = result['ai_message']
+        
+        # Add AI response to history
+        session.messages_history.append({
+            'role': 'model',
+            'content': ai_message
+        })
+        
+        # Update dialogue
+        session.dialogue.append({
+            'role': 'user',
+            'content': user_text,
+            'timestamp': timezone.now().isoformat()
+        })
+        session.dialogue.append({
+            'role': 'ai',
+            'content': ai_message,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+        session.user_messages_count += 1
+        session.messages_count += 2
+        session.save()
+        
+        # TTS
+        audio_bytes = speech_service.synthesize_speech(ai_message)
+        filename = f"rp_{session.id}_{session.messages_count}.mp3"
+        audio_url = speech_service.save_audio_file(audio_bytes, filename)
+        
+        # GET or CREATE ChatSession for rendering
+        chat_session, _ = ChatSession.objects.get_or_create(
+            user=session.user,
+            lesson=session.lesson,
+            session_type='roleplay_voice',
+            is_active=True,
+            defaults={'title': f"Role-Play: {session.scenario_name}"}
+        )
+        
+        # Save user message to ChatMessage
+        user_msg = create_user_message(
+            chat_session,
+            user_text,
+            source_type='voice',
+            transcript=user_text
+        )
+        
+        # Build AI response dict for helper
+        ai_response_dict = {
+            'response': result.get('ai_message', ''),
+            'translation': result.get('translation'),  # From RolePlayEngine
+            'explanation': result.get('explanation'),  # From RolePlayEngine
+            'corrected_text': result.get('corrected_text'),  # From RolePlayEngine
+            'full_english_version': None,
+            'phase': 'initial',
+            'has_errors': False
+        }
+        
+        # Save AI message to ChatMessage with audio URL
+        ai_msg = create_ai_message(
+            chat_session,
+            ai_response_dict,
+            source_type='voice',
+            audio_url=audio_url
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'user_text': user_text,
+            'ai_message': ai_message,
+            'audio_url': audio_url,
+            'transcript': user_text,
+            'message_id': ai_msg.id  # For rendering via server partial
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in role-play voice: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)

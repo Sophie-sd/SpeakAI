@@ -2,8 +2,6 @@
  * Lesson interactions: tabs, homework submission, voice practice
  */
 
-import { fetchWithCsrf } from './utils.js';
-
 document.addEventListener('DOMContentLoaded', function() {
     initTabSystem();
     initHomeworkSubmission();

@@ -1,6 +1,6 @@
 /**
- * LessonVoiceModal - Voice Practice & Role-Play for Lessons
- * Phase 2.9: Modal interface for Voice Practice and Role-Play modes
+ * LessonVoiceModal - ПОВНА КОПІЯ voice chat в модалці
+ * Обмежено лише темою уроку/roleplay
  */
 
 class LessonVoiceModal {
@@ -8,10 +8,10 @@ class LessonVoiceModal {
         this.modal = document.getElementById('lesson-voice-modal');
         this.sessionId = null;
         this.lessonId = null;
-        this.mode = null; // 'voice_practice' or 'roleplay'
+        this.mode = null;
         this.isRecording = false;
         
-        // Initialize components
+        // Initialize recorder and visualizer
         if (typeof VoiceRecorder !== 'undefined') {
             this.recorder = new VoiceRecorder();
         }
@@ -29,61 +29,50 @@ class LessonVoiceModal {
             closeBtn.addEventListener('click', () => this.close());
         }
         
+        // Record button (hold to speak)
+        const recordBtn = document.getElementById('modal-record-btn');
+        if (recordBtn) {
+            recordBtn.addEventListener('mousedown', (e) => this.startRecording(e));
+            recordBtn.addEventListener('mouseup', (e) => this.stopRecording(e));
+            recordBtn.addEventListener('mouseleave', (e) => this.stopRecording(e));
+            recordBtn.addEventListener('touchstart', (e) => this.startRecording(e));
+            recordBtn.addEventListener('touchend', (e) => this.stopRecording(e));
+        }
+        
+        // Text form
+        const textForm = document.getElementById('modal-text-form');
+        if (textForm) {
+            textForm.addEventListener('submit', (e) => this.handleTextSubmit(e));
+        }
+        
         // Finish button
         const finishBtn = document.getElementById('modal-finish-btn');
         if (finishBtn) {
             finishBtn.addEventListener('click', () => this.finishAndEvaluate());
         }
         
-        // Record button
-        const recordBtn = document.getElementById('modal-record-btn');
-        if (recordBtn) {
-            recordBtn.addEventListener('mousedown', (e) => this.startRecording(e));
-            recordBtn.addEventListener('mouseup', (e) => this.stopRecording(e));
-            recordBtn.addEventListener('mouseleave', (e) => this.stopRecording(e));
-            
-            recordBtn.addEventListener('touchstart', (e) => this.startRecording(e));
-            recordBtn.addEventListener('touchend', (e) => this.stopRecording(e));
-        }
-        
-        // Text form submission
-        const textForm = document.getElementById('modal-text-form');
-        if (textForm) {
-            textForm.addEventListener('submit', (e) => this.handleTextSubmit(e));
-        }
+        // Recording finished event
+        document.addEventListener('recording-finished', (e) => this.handleRecordingFinished(e));
     }
     
-    /**
-     * Open modal for Voice Practice or Role-Play
-     */
     async open(lessonId, mode) {
         this.lessonId = lessonId;
         this.mode = mode;
         
-        // Update title
         const title = mode === 'voice_practice' ? 'Voice Practice' : 'Role-Play';
         document.getElementById('modal-title').textContent = title;
         
-        // Show modal
         this.modal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
         
-        // Load or create session
         await this.loadSession();
     }
     
-    /**
-     * Close modal without evaluation
-     */
     close() {
         this.modal.style.display = 'none';
         document.body.style.overflow = '';
-        // Session remains active for continuation
     }
     
-    /**
-     * Load existing or create new session
-     */
     async loadSession() {
         try {
             const endpoint = this.mode === 'voice_practice'
@@ -95,43 +84,35 @@ class LessonVoiceModal {
                 body: JSON.stringify({})
             });
             
-            const data = await response.json();
-            
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to load session');
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
             }
+            
+            const data = await response.json();
             
             this.sessionId = data.session_id;
             
-            // Clear chat history
             const chatHistory = document.getElementById('modal-chat-history');
             if (chatHistory) {
                 chatHistory.innerHTML = '';
             }
             
             if (data.continued && data.messages) {
-                // Restore existing conversation
+                // Restore conversation using render-message endpoint
                 for (const msg of data.messages) {
-                    if (msg.role === 'user') {
-                        this.addUserMessage(msg.content);
-                    } else {
-                        this.addAIMessage(msg);
+                    if (msg.id) {
+                        await this.renderMessageFromServer(msg.id);
                     }
                 }
-            } else if (data.initial_message) {
-                // New session - show initial AI message
-                this.addAIMessage(data.initial_message);
+            } else if (data.initial_message && data.initial_message.id) {
+                // ALWAYS render initial message via server partial (with full UI features)
+                await this.renderMessageFromServer(data.initial_message.id);
                 
-                // Play initial audio if available
-                if (data.initial_message.audio_url) {
-                    this.playAudio(data.initial_message.audio_url);
+                // Play audio
+                if (data.audio_url || (data.initial_message && data.initial_message.audio_url)) {
+                    this.playAudio(data.audio_url || data.initial_message.audio_url);
                 }
-            } else if (data.ai_message) {
-                // Role-play response format (legacy)
-                this.addAIMessage({
-                    content: data.ai_message,
-                    role: 'model'
-                });
             }
         } catch (error) {
             console.error('Error loading session:', error);
@@ -139,13 +120,10 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Start recording audio
-     */
     async startRecording(e) {
         if (!this.recorder) return;
-        
         e.preventDefault();
+        
         try {
             const stream = await this.recorder.start();
             if (stream) {
@@ -161,13 +139,10 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Stop recording audio
-     */
     async stopRecording(e) {
         if (!this.recorder || !this.isRecording) return;
-        
         e.preventDefault();
+        
         this.recorder.stop();
         this.isRecording = false;
         
@@ -175,14 +150,8 @@ class LessonVoiceModal {
         if (recordBtn) {
             recordBtn.classList.remove('recording');
         }
-        
-        // Listen for recording-finished event
-        document.addEventListener('recording-finished', (evt) => this.handleRecordingFinished(evt), { once: true });
     }
     
-    /**
-     * Handle finished recording
-     */
     async handleRecordingFinished(evt) {
         const audioBlob = evt.detail;
         if (!audioBlob || audioBlob.size < 1000) {
@@ -193,9 +162,6 @@ class LessonVoiceModal {
         await this.processAudio(audioBlob);
     }
     
-    /**
-     * Process audio: send to server, get AI response
-     */
     async processAudio(audioBlob) {
         try {
             const responseText = document.getElementById('modal-response-text');
@@ -204,44 +170,40 @@ class LessonVoiceModal {
             }
             
             const formData = new FormData();
-            formData.append('audio', audioBlob);
+            formData.append('audio', audioBlob, 'recording.webm');
             
             const endpoint = this.mode === 'voice_practice'
                 ? `/chat/lesson/${this.lessonId}/voice-practice/process-audio/`
                 : `/chat/roleplay/${this.sessionId}/continue-voice/`;
             
-            const csrfToken = this.getCsrfToken();
             const response = await fetch(endpoint, {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-CSRFToken': csrfToken
+                    'X-CSRFToken': this.getCsrfToken()
                 }
             });
             
-            const data = await response.json();
-            
             if (!response.ok) {
-                throw new Error(data.error || 'Error processing audio');
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
             }
+            
+            const data = await response.json();
             
             if (responseText) {
                 responseText.innerText = '';
             }
             
             // Add user message
-            if (data.transcript) {
-                this.addUserMessage(data.transcript);
+            const userText = data.user_text || data.transcript;
+            if (userText) {
+                this.addUserMessage(userText);
             }
             
-            // Add AI message
-            if (data.ai_message || data.message_id) {
-                this.addAIMessage({
-                    content: data.ai_message,
-                    translation: data.translation,
-                    corrected_text: data.corrected_text,
-                    audio_url: data.audio_url
-                });
+            // Add AI message using server rendering
+            if (data.message_id) {
+                await this.renderMessageFromServer(data.message_id);
             }
             
             // Play audio
@@ -249,7 +211,7 @@ class LessonVoiceModal {
                 this.playAudio(data.audio_url);
             }
             
-            // Check if AI suggests finishing
+            // Check if should finish
             if (data.should_finish) {
                 this.showFinishSuggestion();
             }
@@ -259,9 +221,6 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Handle text input submission
-     */
     async handleTextSubmit(e) {
         e.preventDefault();
         
@@ -273,6 +232,7 @@ class LessonVoiceModal {
         
         input.value = '';
         
+        // Add user message immediately
         this.addUserMessage(text);
         
         try {
@@ -281,15 +241,13 @@ class LessonVoiceModal {
                 responseText.innerText = '🤔 Обробляю...';
             }
             
-            let endpoint, formData;
+            const formData = new FormData();
             
-            formData = new FormData();
-            
+            let endpoint;
             if (this.mode === 'voice_practice') {
                 endpoint = `/chat/lesson/${this.lessonId}/voice-practice/process-text/`;
                 formData.append('text', text);
             } else {
-                // Role-play mode - use 'message' parameter
                 endpoint = `/chat/roleplay/${this.sessionId}/continue/`;
                 formData.append('message', text);
             }
@@ -302,31 +260,28 @@ class LessonVoiceModal {
                 }
             });
             
-            const data = await response.json();
-            
             if (!response.ok) {
-                throw new Error(data.error || 'Error processing text');
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
             }
+            
+            const data = await response.json();
             
             if (responseText) {
                 responseText.innerText = '';
             }
             
-            // Add AI message
-            const aiContent = data.ai_message || data.response;
-            this.addAIMessage({
-                content: aiContent,
-                translation: data.translation,
-                corrected_text: data.corrected_text,
-                audio_url: data.audio_url
-            });
+            // ALWAYS use server rendering for AI message (with full UI features)
+            if (data.message_id) {
+                await this.renderMessageFromServer(data.message_id);
+            }
             
             // Play audio
             if (data.audio_url) {
                 this.playAudio(data.audio_url);
             }
             
-            // Check if AI suggests finishing
+            // Check if should finish
             if (data.should_finish) {
                 this.showFinishSuggestion();
             }
@@ -337,8 +292,30 @@ class LessonVoiceModal {
     }
     
     /**
-     * Add user message to chat
+     * Render message using server endpoint (same as voice chat)
      */
+    async renderMessageFromServer(messageId) {
+        try {
+            const response = await fetch(`/voice/render-message/${messageId}/`);
+            if (!response.ok) throw new Error('Failed to fetch message');
+            
+            const html = await response.text();
+            const chatHistory = document.getElementById('modal-chat-history');
+            if (chatHistory) {
+                chatHistory.insertAdjacentHTML('beforeend', html);
+                
+                // Process HTMX for action buttons
+                if (window.htmx) {
+                    htmx.process(chatHistory.lastElementChild);
+                }
+                
+                this.scrollToBottom();
+            }
+        } catch (err) {
+            console.error('Error rendering message:', err);
+        }
+    }
+    
     addUserMessage(content) {
         const chatHistory = document.getElementById('modal-chat-history');
         if (!chatHistory) return;
@@ -356,6 +333,11 @@ class LessonVoiceModal {
                 <div class="content">${this.escapeHtml(content)}</div>
                 <div class="meta">
                     <span class="time">${timeStr}</span>
+                    <span class="status">
+                        <svg class="status-icon" viewBox="0 0 24 24">
+                            <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z" />
+                        </svg>
+                    </span>
                 </div>
             </div>
         `;
@@ -364,39 +346,6 @@ class LessonVoiceModal {
         this.scrollToBottom();
     }
     
-    /**
-     * Add AI message to chat
-     */
-    addAIMessage(msgData) {
-        const chatHistory = document.getElementById('modal-chat-history');
-        if (!chatHistory) return;
-        
-        const wrapper = document.createElement('div');
-        wrapper.className = 'message-wrapper received';
-        
-        const now = new Date();
-        const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
-                       now.getMinutes().toString().padStart(2, '0');
-        
-        const content = msgData.content || msgData.ai_message || '';
-        
-        wrapper.innerHTML = `
-            <div class="avatar">AI</div>
-            <div class="message received">
-                <div class="content">${this.escapeHtml(content)}</div>
-                <div class="meta">
-                    <span class="time">${timeStr}</span>
-                </div>
-            </div>
-        `;
-        
-        chatHistory.appendChild(wrapper);
-        this.scrollToBottom();
-    }
-    
-    /**
-     * Play audio with visualizer
-     */
     playAudio(audioUrl) {
         try {
             const audio = new Audio(audioUrl);
@@ -419,9 +368,6 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Finish session and evaluate
-     */
     async finishAndEvaluate() {
         try {
             const finishBtn = document.getElementById('modal-finish-btn');
@@ -439,13 +385,13 @@ class LessonVoiceModal {
                 body: JSON.stringify({})
             });
             
-            const evaluation = await response.json();
+            const data = await response.json();
             
             if (!response.ok) {
-                throw new Error(evaluation.error || 'Failed to evaluate');
+                throw new Error(data.error || 'Failed to evaluate');
             }
             
-            this.showEvaluationResults(evaluation);
+            this.showEvaluationResults(data);
         } catch (error) {
             console.error('Error evaluating:', error);
             this.showError('Failed to evaluate. Please try again.');
@@ -458,37 +404,49 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Show evaluation results
-     */
-    showEvaluationResults(evaluation) {
-        // Hide chat
+    showEvaluationResults(data) {
         const chatContainer = document.getElementById('modal-chat-container');
         if (chatContainer) {
             chatContainer.style.display = 'none';
         }
         
-        // Show results
         const resultsDiv = document.getElementById('modal-evaluation-results');
         if (!resultsDiv) return;
         
         resultsDiv.style.display = 'block';
         
+        const evaluation = data.evaluation || data;
         const overallScore = evaluation.overall_score ? evaluation.overall_score.toFixed(1) : '—';
         const feedback = evaluation.feedback || '';
         const strengths = evaluation.strengths || [];
         const improvements = evaluation.improvements || [];
+        
+        const pronunciation = evaluation.pronunciation_score;
+        const grammar = evaluation.grammar_score;
+        const vocabulary = evaluation.vocabulary_score;
+        const fluency = evaluation.fluency_score;
+        const taskCompletion = evaluation.task_completion_score;
         
         resultsDiv.innerHTML = `
             <div class="evaluation-results-content">
                 <h3>Результати оцінювання</h3>
                 <div class="score-circle">${overallScore}/10</div>
                 
+                ${(pronunciation || grammar || vocabulary || fluency || taskCompletion) ? `
+                    <div class="detailed-scores">
+                        ${pronunciation ? `<div class="score-item">Pronunciation: ${pronunciation.toFixed(1)}/10</div>` : ''}
+                        ${grammar ? `<div class="score-item">Grammar: ${grammar.toFixed(1)}/10</div>` : ''}
+                        ${vocabulary ? `<div class="score-item">Vocabulary: ${vocabulary.toFixed(1)}/10</div>` : ''}
+                        ${fluency ? `<div class="score-item">Fluency: ${fluency.toFixed(1)}/10</div>` : ''}
+                        ${taskCompletion ? `<div class="score-item">Task Completion: ${taskCompletion.toFixed(1)}/10</div>` : ''}
+                    </div>
+                ` : ''}
+                
                 ${feedback ? `<div class="feedback-text">${this.escapeHtml(feedback)}</div>` : ''}
                 
                 ${strengths.length > 0 ? `
                     <div class="strengths-section">
-                        <h4>Ваші сильні сторони:</h4>
+                        <h4>✅ Ваші сильні сторони:</h4>
                         <ul>
                             ${strengths.map(s => `<li>${this.escapeHtml(s)}</li>`).join('')}
                         </ul>
@@ -497,7 +455,7 @@ class LessonVoiceModal {
                 
                 ${improvements.length > 0 ? `
                     <div class="improvements-section">
-                        <h4>Де можна поліпшити:</h4>
+                        <h4>📝 Де можна поліпшити:</h4>
                         <ul>
                             ${improvements.map(i => `<li>${this.escapeHtml(i)}</li>`).join('')}
                         </ul>
@@ -519,9 +477,6 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Show finish suggestion
-     */
     showFinishSuggestion() {
         const responseText = document.getElementById('modal-response-text');
         if (responseText) {
@@ -529,9 +484,6 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Show error message
-     */
     showError(message) {
         const responseText = document.getElementById('modal-response-text');
         if (responseText) {
@@ -539,9 +491,6 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Scroll to bottom of chat
-     */
     scrollToBottom() {
         const chatHistory = document.getElementById('modal-chat-history');
         if (chatHistory) {
@@ -551,9 +500,6 @@ class LessonVoiceModal {
         }
     }
     
-    /**
-     * Escape HTML for safe display
-     */
     escapeHtml(text) {
         if (!text) return '';
         const map = {
@@ -566,9 +512,6 @@ class LessonVoiceModal {
         return text.replace(/[&<>"']/g, m => map[m]);
     }
     
-    /**
-     * Get CSRF token
-     */
     getCsrfToken() {
         const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
         if (token) return token;
@@ -593,7 +536,6 @@ class LessonVoiceModal {
  * Helper: Fetch with CSRF token
  */
 async function fetchWithCsrf(url, options = {}) {
-    // Get CSRF token from form or cookie
     const tokenElement = document.querySelector('[name=csrfmiddlewaretoken]');
     let csrfToken = tokenElement ? tokenElement.value : null;
     

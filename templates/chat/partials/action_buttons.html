@@ -1,26 +1,26 @@
 {# Universal partial for action buttons - used by all templates #}
-{# Context variables: phase, corrected_text, full_english_version, user_message, explanation, session_id, send_url #}
+{# Context variables: phase, corrected_text, full_english_version, user_message, explanation, session_id, send_url, target_id #}
 
 {% if phase == "initial" and corrected_text and not full_english_version %}
     <div class="chat-action-buttons">
         <button class="btn-action" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: explain_detailed_ua]\nПоточне повідомлення: {% if user_message %}{{ user_message|escapejs|truncatewords:50 }}{% endif %}", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             <span class="icon">🇺🇦</span> Пояснити детальніше
         </button>
         <button class="btn-action" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: explain_detailed_en]\nCurrent message: {% if user_message %}{{ user_message|escapejs|truncatewords:50 }}{% endif %}", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             <span class="icon">🇬🇧</span> Detail in English
         </button>
         <button class="btn-action secondary" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: practice_task]\nОригінал: {% if user_message %}{{ user_message|escapejs }}{% endif %}\nВиправлено: {{ corrected_text|escapejs }}\nПомилка: {% if explanation %}{{ explanation|escapejs|truncatewords:30 }}{% else %}граматична помилка{% endif %}", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             Пройти завдання
         </button>
@@ -30,14 +30,14 @@
         <button class="btn-action primary" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: continue_lesson]", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             Продовжити урок
         </button>
         <button class="btn-action secondary" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: practice_task]\nОригінал: {% if user_message %}{{ user_message|escapejs }}{% endif %}\nВиправлено: {{ corrected_text|escapejs }}\nПомилка: {% if explanation %}{{ explanation|escapejs|truncatewords:30 }}{% else %}граматична помилка{% endif %}", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             Пройти завдання
         </button>
@@ -47,14 +47,14 @@
         <button class="btn-action secondary" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: practice_task]\nОригінал: {% if user_message %}{{ user_message|escapejs }}{% endif %}\nВиправлено: {{ corrected_text|escapejs }}\nПомилка: {% if explanation %}{{ explanation|escapejs|truncatewords:30 }}{% else %}граматична помилка{% endif %}", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             Ще завдання
         </button>
         <button class="btn-action primary" 
                 hx-post="{{ send_url }}" 
                 hx-vals='{"content": "[ACTION: continue_lesson]", "session_id": "{{ session_id }}"}'
-                hx-target="#chat-history" 
+                hx-target="{% if target_id %}{{ target_id }}{% else %}#chat-history{% endif %}" 
                 hx-swap="beforeend">
             Продовжити урок
         </button>

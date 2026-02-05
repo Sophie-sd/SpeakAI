@@ -26,6 +26,13 @@ urlpatterns = [
     path('homework-submission/<int:submission_id>/', views.get_homework_submission_detail, name='homework_submission_detail'),
     path('lesson/<int:lesson_id>/voice-practice/', views.voice_practice_session, name='voice_practice_session'),
     
+    # Lesson Voice Practice URLs (Phase 2.9)
+    path('lesson/<int:lesson_id>/voice-practice-chat/', views.start_lesson_voice_practice, name='start_lesson_voice_practice'),
+    path('lesson/<int:lesson_id>/voice-practice/process-audio/', views.process_lesson_voice_audio, name='process_lesson_voice_audio'),
+    path('lesson/<int:lesson_id>/voice-practice/process-text/', views.process_lesson_voice_text, name='process_lesson_voice_text'),
+    path('lesson/<int:lesson_id>/voice-practice/evaluate/', views.evaluate_lesson_voice_practice, name='evaluate_lesson_voice_practice'),
+    path('roleplay/<int:session_id>/continue-voice/', views.continue_roleplay_voice, name='continue_roleplay_voice'),
+    
     # Quiz URLs (Phase 1.1)
     path('lesson/<int:lesson_id>/quiz/', views.get_lesson_quiz, name='get_lesson_quiz'),
     path('quiz/<int:quiz_id>/start/', views.start_quiz, name='start_quiz'),

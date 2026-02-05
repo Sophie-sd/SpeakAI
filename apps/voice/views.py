@@ -224,10 +224,14 @@ def render_message(request, message_id):
         user_messages = message.session.messages.filter(role='user').order_by('-created_at')
         user_message = user_messages.first() if user_messages else None
         
+        # Detect if this is a lesson-based session (modal context)
+        target_id = "#modal-chat-history" if message.session.lesson else "#chat-history"
+        
         return render(request, 'chat/partials/single_message.html', {
             'message': message,
             'user_message': user_message,
-            'send_message_url': reverse('send_message')
+            'send_message_url': reverse('send_message'),
+            'target_id': target_id
         })
     except Exception as e:
         logger.error(f"Error rendering message: {e}")

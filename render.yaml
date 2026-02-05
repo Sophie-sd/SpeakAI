@@ -1,19 +1,24 @@
+databases:
+  - name: ai-english-tutor-db
+    engine: postgres
+    ipAllowList: []
+    plan: free
+
 services:
   - type: web
     name: ai-english-tutor
-    env: python
-    plan: starter
-    buildCommand: bash build.sh
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
     envVars:
       - key: DEBUG
         value: "False"
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings
-      - key: ALLOWED_HOSTS
-        value: "ai-english-tutor.onrender.com"
       - key: SECRET_KEY
-        sync: false
+        generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: ai-english-tutor-db
@@ -32,9 +37,5 @@ services:
         sync: false
       - key: EMAIL_USE_TLS
         sync: false
-
-databases:
-  - name: ai-english-tutor-db
-    engine: postgres
-    ipAllowList: []
-    plan: starter
+      - key: WEB_CONCURRENCY
+        value: "4"

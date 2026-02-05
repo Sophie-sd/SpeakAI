@@ -24,6 +24,14 @@ services:
         sync: false
       - key: CLOUDINARY_URL
         sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      - key: EMAIL_USE_TLS
+        sync: false
 
 databases:
   - name: ai-english-tutor-db

@@ -1,0 +1,82 @@
+{# Reusable chat panel component - used in chat and voice pages #}
+<div id="chat-history" class="chat-history">
+    {% for message in messages %}
+        <div class="message-wrapper {% if message.role == 'user' %}sent{% endif %}" data-message-id="{{ message.id }}">
+            <div class="avatar {% if message.role == 'model' %}received-avatar{% endif %}">
+                {% if message.role == 'user' %}Я{% else %}A{% endif %}
+            </div>
+            <div class="message {% if message.role == 'user' %}sent{% else %}received{% endif %}">
+                <div class="content">{{ message.content|linebreaksbr }}</div>
+                
+                {% if message.role == 'model' %}
+                    {# Translation block #}
+                    {% if message.translation %}
+                        <div class="translation-block translation-block-hidden" id="translation-{{ message.id }}">
+                            <div class="translation-divider"></div>
+                            <div class="translation-content">{{ message.translation|linebreaksbr }}</div>
+                        </div>
+                        <button type="button" class="btn-translation" data-translation-target="{{ message.id }}">
+                            <span class="icon">🌐</span> <span class="text">Переглянути переклад</span>
+                        </button>
+                    {% endif %}
+
+                    {# Full English version block (for mixed language input) #}
+                    {% if message.full_english_version %}
+                        <div class="full-english-block">
+                            <div class="correction-header">
+                                <span class="icon">💬</span> Як це сказати повністю англійською:
+                            </div>
+                            <div class="correction-content">{{ message.full_english_version|linebreaksbr }}</div>
+                        </div>
+                    {% endif %}
+
+                    {# Correction block (for pure English with errors) #}
+                    {% if message.corrected_text %}
+                        <div class="correction-block" data-original-message="{% with prev_message=message.session.messages.filter role='user'|dictsort:'-created_at'|first %}{{ prev_message.content|escapejs }}{% endwith %}">
+                            <div class="correction-header">
+                                <span class="icon">📝</span> Як це сказати англійською:
+                            </div>
+                            <div class="correction-content">{{ message.corrected_text|linebreaksbr }}</div>
+                        </div>
+                    {% endif %}
+
+                    {# Explanation block #}
+                    {% if message.explanation %}
+                        <div class="explanation-block">
+                            <div class="explanation-header">
+                                <span class="icon">💡</span> Пояснення:
+                            </div>
+                            <div class="explanation-content">{{ message.explanation|linebreaksbr }}</div>
+                        </div>
+                    {% endif %}
+
+                    {# Action buttons #}
+                    {% with prev_message=message.session.messages.filter role='user'|dictsort:'-created_at'|first %}
+                    {% include 'chat/partials/action_buttons.html' with phase=message.transcript corrected_text=message.corrected_text full_english_version=message.full_english_version user_message=prev_message.content explanation=message.explanation session_id=message.session.id send_url=send_message_url %}
+                    {% endwith %}
+                {% endif %}
+
+                {# Image block #}
+                {% if message.role == 'model' and message.image_shown %}
+                    <img src="{{ message.image_shown.image.url }}" alt="{{ message.image_shown.topic }}" class="message-image">
+                {% endif %}
+
+                <div class="meta">
+                    <span class="time">{{ message.created_at|date:"H:i" }}</span>
+                    {% if message.role == 'user' %}
+                    <span class="status">
+                        <svg class="status-icon" viewBox="0 0 24 24">
+                            <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z" />
+                        </svg>
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="chat-empty">
+            <h2>Вітаємо!</h2>
+            <p>Почніть розмову з вашим AI вчителем англійської.</p>
+        </div>
+    {% endfor %}
+</div>

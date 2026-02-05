@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/learning.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="learning-program-container">
+    <header class="program-header">
+        <h1>Select Your English Level</h1>
+        <p class="level-badge">Current Level: {{ current_level }}</p>
+    </header>
+
+    <div class="level-selector-grid">
+        {% for level in levels %}
+        <a href="{% url 'change_level' level.code %}" class="level-card">
+            <div class="level-card-header">
+                <h3>{{ level.code }}</h3>
+                {% if level.code == current_level %}
+                <span class="current-badge">✓ Current</span>
+                {% endif %}
+            </div>
+            <p class="level-name">{{ level.name }}</p>
+            <p class="level-description">{{ level.desc }}</p>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div class="level-info">
+        <h3>CEFR Levels Explained</h3>
+        <ul>
+            <li><strong>A0 (Starter)</strong> - Complete beginner, just starting your English journey</li>
+            <li><strong>A1 (Beginner)</strong> - You know a few words and basic phrases</li>
+            <li><strong>A2 (Elementary)</strong> - You can hold simple conversations</li>
+            <li><strong>B1 (Intermediate)</strong> - You can discuss various topics fluently</li>
+            <li><strong>B2 (Upper Intermediate)</strong> - You're quite fluent and can debate</li>
+            <li><strong>C1 (Advanced)</strong> - You speak fluently with sophistication</li>
+            <li><strong>C2 (Proficient)</strong> - You're nearly a native speaker</li>
+        </ul>
+    </div>
+
+    <div class="back-link">
+        <a href="{% url 'learning_program' %}">← Back to Learning Program</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/learning.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="learning-program-container">
+    <header class="program-header">
+        <h1>Your Learning Path</h1>
+        <p class="level-badge">Current Level: {{ user_level }}</p>
+    </header>
+
+    <div class="empty-state">
+        <h2>{{ message }}</h2>
+
+        <div class="level-selector-grid">
+            {% for level in available_levels %}
+            <a href="{% url 'change_level' level %}" class="level-card">
+                <h3>{{ level }}</h3>
+                <p>
+                    {% if level == 'A0' %}Choose A0 (Starter){% endif %}
+                    {% if level == 'A1' %}Choose A1 (Beginner){% endif %}
+                    {% if level == 'A2' %}Choose A2 (Elementary){% endif %}
+                    {% if level == 'B1' %}Choose B1 (Intermediate){% endif %}
+                    {% if level == 'B2' %}Choose B2 (Upper Intermediate){% endif %}
+                    {% if level == 'C1' %}Choose C1 (Advanced){% endif %}
+                    {% if level == 'C2' %}Choose C2 (Proficient){% endif %}
+                </p>
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="admin-hint">
+            <p><strong>Admin Tip:</strong> Run <code>python manage.py load_learning_program --level all</code> to
+                populate all levels.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

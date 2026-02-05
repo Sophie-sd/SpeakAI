@@ -1,0 +1,196 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="uk" class="h-full">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>AI English Tutor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/home.css' %}">
+</head>
+
+<body class="page-home">
+  <div class="app-wrapper home">
+    <header class="glass-header" role="banner">
+      <p class="header-text" id="headerText">Увесь досвід людства з вивчення англійської у твоїй кишені</p>
+    </header>
+
+    <main class="main-content" id="main-content" role="main">
+      <div class="blocks-container">
+        <a href="{% url 'chat' %}" class="feature-block active" id="block1" aria-labelledby="block1Title"
+          aria-describedby="block1Desc">
+          <div class="block-bg" aria-hidden="true">
+            <svg viewBox="0 0 400 500" preserveAspectRatio="xMidYMid slice" focusable="false">
+              <defs>
+                <linearGradient id="block1-bg" class="grad-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" />
+                  <stop offset="100%" />
+                </linearGradient>
+              </defs>
+              <rect width="400" height="500" fill="url(#block1-bg)" />
+              <rect x="40" y="80" width="200" height="60" rx="20" fill="rgba(220, 38, 38, 0.2)"
+                stroke="rgba(220, 38, 38, 0.5)" stroke-width="2" />
+              <text x="140" y="115" font-family="Poppins" font-size="12" fill="rgba(255,255,255,0.6)"
+                text-anchor="middle">Hello! How are you?</text>
+              <rect x="160" y="180" width="200" height="60" rx="20" fill="rgba(239, 68, 68, 0.3)"
+                stroke="rgba(239, 68, 68, 0.6)" stroke-width="2" />
+              <text x="260" y="215" font-family="Poppins" font-size="12" fill="#fff" text-anchor="middle">I'm great!
+                Let's learn</text>
+              <rect x="40" y="280" width="220" height="80" rx="20" fill="rgba(220, 38, 38, 0.15)"
+                stroke="rgba(220, 38, 38, 0.4)" stroke-width="2" />
+              <text x="150" y="310" font-family="Poppins" font-size="11" fill="rgba(255,255,255,0.7)"
+                text-anchor="middle">Tell me about your</text>
+              <text x="150" y="330" font-family="Poppins" font-size="11" fill="rgba(255,255,255,0.7)"
+                text-anchor="middle">English learning goals</text>
+              <circle cx="80" cy="400" r="3" fill="rgba(220, 38, 38, 0.5)" />
+              <circle cx="320" cy="420" r="2" fill="rgba(239, 68, 68, 0.4)" />
+              <circle cx="350" cy="380" r="4" fill="rgba(220, 38, 38, 0.3)" />
+            </svg>
+          </div>
+          <div class="block-overlay"></div>
+          <div class="block-content">
+            <span class="active-badge" id="block1Badge">✨ Активно</span>
+            <h2 class="block-title" id="block1Title">Чат-репетитор</h2>
+            <p class="block-desc" id="block1Desc">Розмовляй за текстом, цитуй граматику</p>
+          </div>
+        </a>
+
+        <a href="{% url 'voice_mode' %}" class="feature-block {% if not user.is_paid %}locked{% endif %}" id="block2"
+          aria-labelledby="block2Title" aria-describedby="block2Desc">
+          <div class="block-bg" aria-hidden="true">
+            <svg viewBox="0 0 400 500" preserveAspectRatio="xMidYMid slice" focusable="false">
+              <defs>
+                <linearGradient id="block2-bg" class="grad-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" />
+                  <stop offset="100%" />
+                </linearGradient>
+              </defs>
+              <rect width="400" height="500" fill="url(#block2-bg)" />
+              <path d="M200 100 Q210 120 200 140 Q190 120 200 100" fill="rgba(220, 38, 38, 0.3)" />
+              <path d="M200 100 Q220 130 200 160 Q180 130 200 100" fill="none" stroke="rgba(220, 38, 38, 0.2)"
+                stroke-width="2" />
+              <path d="M200 100 Q230 140 200 180 Q170 140 200 100" fill="none" stroke="rgba(220, 38, 38, 0.1)"
+                stroke-width="2" />
+              <rect x="175" y="200" width="50" height="70" rx="25" fill="rgba(239, 68, 68, 0.3)"
+                stroke="rgba(239, 68, 68, 0.6)" stroke-width="2" />
+              <circle cx="200" cy="220" r="12" fill="rgba(220, 38, 38, 0.6)" />
+              <line x1="200" y1="270" x2="200" y2="350" stroke="rgba(220, 38, 38, 0.3)" stroke-width="3"
+                stroke-linecap="round" />
+              <ellipse cx="200" cy="360" rx="50" ry="15" fill="rgba(220, 38, 38, 0.2)" stroke="rgba(220, 38, 38, 0.4)"
+                stroke-width="2" />
+              <text x="200" y="420" font-family="Poppins" font-size="14" fill="rgba(255,255,255,0.6)"
+                text-anchor="middle" font-weight="500">Voice Learning</text>
+            </svg>
+          </div>
+          <div class="block-overlay"></div>
+          <div class="block-content">
+            {% if user.is_paid %}
+            <span class="active-badge" id="block2Badge">🎤 Голосовий режим</span>
+            {% else %}
+            <span class="locked-badge" id="block2Badge">🎤 Голосовий режим</span>
+            {% endif %}
+            <h2 class="block-title" id="block2Title">Голосовий репетитор</h2>
+            <p class="block-desc" id="block2Desc">Говори з AI в реальному часі</p>
+          </div>
+        </a>
+
+        <a href="{% url 'avatar_mode' %}" class="feature-block {% if not user.is_paid %}locked{% endif %}" id="block3"
+          aria-labelledby="block3Title" aria-describedby="block3Desc">
+          <div class="block-bg" aria-hidden="true">
+            <svg viewBox="0 0 400 500" preserveAspectRatio="xMidYMid slice" focusable="false">
+              <defs>
+                <linearGradient id="block3-bg" class="grad-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" />
+                  <stop offset="100%" />
+                </linearGradient>
+                <radialGradient id="block3-glow" class="grad-glow" cx="50%" cy="50%" r="60%">
+                  <stop offset="0%" />
+                  <stop offset="100%" />
+                </radialGradient>
+              </defs>
+              <rect width="400" height="500" fill="url(#block3-bg)" />
+              <circle cx="200" cy="180" r="100" fill="url(#block3-glow)" />
+              <circle cx="200" cy="180" r="60" fill="rgba(220, 38, 38, 0.2)" stroke="rgba(220, 38, 38, 0.5)"
+                stroke-width="2" />
+              <ellipse cx="200" cy="185" rx="45" ry="50" fill="rgba(30, 41, 59, 0.5)" />
+              <circle cx="180" cy="165" r="8" fill="rgba(220, 38, 38, 0.4)" stroke="rgba(220, 38, 38, 0.8)"
+                stroke-width="2" />
+              <circle cx="220" cy="165" r="8" fill="rgba(220, 38, 38, 0.4)" stroke="rgba(220, 38, 38, 0.8)"
+                stroke-width="2" />
+              <circle cx="180" cy="163" r="3" fill="#dc2626" />
+              <circle cx="220" cy="163" r="3" fill="#dc2626" />
+              <path d="M180 200 Q200 215 220 200" stroke="rgba(239, 68, 68, 0.8)" stroke-width="3" fill="none"
+                stroke-linecap="round" />
+              <ellipse cx="200" cy="300" rx="40" ry="50" fill="rgba(220, 38, 38, 0.15)" stroke="rgba(220, 38, 38, 0.4)"
+                stroke-width="2" />
+              <circle cx="150" cy="150" r="2" fill="rgba(239, 68, 68, 0.6)" />
+              <circle cx="250" cy="180" r="3" fill="rgba(220, 38, 38, 0.4)" />
+              <circle cx="170" cy="280" r="2" fill="rgba(239, 68, 68, 0.5)" />
+              <circle cx="280" cy="250" r="2" fill="rgba(220, 38, 38, 0.3)" />
+            </svg>
+          </div>
+          <div class="block-overlay"></div>
+          <div class="block-content">
+            {% if user.is_paid %}
+            <span class="active-badge" id="block3Badge">🤖 AI Персонаж</span>
+            {% else %}
+            <span class="locked-badge" id="block3Badge">🤖 AI Персонаж</span>
+            {% endif %}
+            <h2 class="block-title" id="block3Title">AI Персонаж</h2>
+            <p class="block-desc" id="block3Desc">Повне занурення у світ англійської</p>
+          </div>
+        </a>
+
+        <a href="{% url 'learning_program' %}" class="feature-block {% if not user.is_paid %}locked{% endif %}"
+          id="block4" aria-labelledby="block4Title" aria-describedby="block4Desc">
+          <div class="block-bg" aria-hidden="true">
+            <svg viewBox="0 0 400 500" preserveAspectRatio="xMidYMid slice" focusable="false">
+              <defs>
+                <linearGradient id="block4-bg" class="grad-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" />
+                  <stop offset="100%" />
+                </linearGradient>
+              </defs>
+              <rect width="400" height="500" fill="url(#block4-bg)" />
+              <rect x="50" y="80" width="120" height="90" rx="10" fill="rgba(147, 51, 234, 0.2)"
+                stroke="rgba(147, 51, 234, 0.5)" stroke-width="2" />
+              <rect x="80" y="100" width="80" height="10" fill="rgba(147, 51, 234, 0.4)" />
+              <rect x="80" y="120" width="70" height="8" fill="rgba(147, 51, 234, 0.3)" />
+              <rect x="80" y="135" width="60" height="8" fill="rgba(147, 51, 234, 0.3)" />
+              <rect x="230" y="80" width="120" height="90" rx="10" fill="rgba(192, 38, 211, 0.2)"
+                stroke="rgba(192, 38, 211, 0.5)" stroke-width="2" />
+              <rect x="260" y="100" width="80" height="10" fill="rgba(192, 38, 211, 0.4)" />
+              <rect x="260" y="120" width="70" height="8" fill="rgba(192, 38, 211, 0.3)" />
+              <rect x="260" y="135" width="60" height="8" fill="rgba(192, 38, 211, 0.3)" />
+              <rect x="50" y="220" width="120" height="90" rx="10" fill="rgba(147, 51, 234, 0.15)"
+                stroke="rgba(147, 51, 234, 0.4)" stroke-width="2" />
+              <rect x="230" y="220" width="120" height="90" rx="10" fill="rgba(192, 38, 211, 0.15)"
+                stroke="rgba(192, 38, 211, 0.4)" stroke-width="2" />
+              <circle cx="100" cy="380" r="3" fill="rgba(147, 51, 234, 0.6)" />
+              <circle cx="300" cy="400" r="2" fill="rgba(192, 38, 211, 0.5)" />
+              <circle cx="150" cy="420" r="2" fill="rgba(147, 51, 234, 0.4)" />
+            </svg>
+          </div>
+          <div class="block-overlay"></div>
+          <div class="block-content">
+            {% if user.is_paid %}
+            <span class="active-badge" id="block4Badge">📚 Активно</span>
+            {% else %}
+            <span class="locked-badge" id="block4Badge">📚 Програма</span>
+            {% endif %}
+            <h2 class="block-title" id="block4Title">Структурована програма</h2>
+            <p class="block-desc" id="block4Desc">330 уроків від A0 до C2</p>
+          </div>
+        </a>
+      </div>
+    </main>
+  </div>
+  <script src="{% static 'js/home.js' %}"></script>
+</body>
+
+</html>

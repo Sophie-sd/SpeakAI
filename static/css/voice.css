@@ -1,0 +1,370 @@
+/* ====== VOICE PAGES STYLES ====== */
+/* Refactored - Nov 2025 */
+/* Loaded after chat.css - overrides only for voice layout. */
+
+.voice-page-layout {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    height: var(--content-height);
+    overflow: hidden;
+}
+
+.voice-controls-panel {
+    flex: 0 0 40%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
+    border-right: 1px solid #333;
+    overflow-y: auto;
+}
+
+.voice-chat-panel {
+    flex: 0 0 60%;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    overflow: hidden;
+}
+
+/* Voice Content */
+.voice-avatar-wrapper {
+    width: 100%;
+    max-width: 280px;
+    max-height: 35vh;
+    aspect-ratio: 9 / 16;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 1px solid #333;
+}
+
+.voice-avatar-wrapper video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.voice-avatar-wrapper .video-hidden {
+    display: none;
+}
+
+.voice-visualizer-container {
+    width: 100%;
+    max-width: 280px;
+    height: 80px;
+    background: transparent;
+    border-radius: 12px;
+    border: none;
+    margin: 1.5rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    overflow: hidden;
+}
+
+.visualizer-bar {
+    width: 16px;
+    background: #ef4444;
+    border-radius: 8px;
+    height: 20px;
+    transition: height 0.2s ease-in-out;
+}
+
+.response-text, .response-text-voice {
+    min-height: 60px;
+    color: #e5e5e5;
+    text-align: center;
+    font-size: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 320px;
+    border: 1px solid #333;
+    line-height: 1.5;
+}
+
+/* Siri Voice Pulse Styles */
+.pulse-container {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.2s ease;
+    margin: 1rem 0;
+}
+
+.pulse-container:active {
+    transform: scale(0.95);
+}
+
+.pulse-ring {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(220, 38, 38, 0.6) 0%, rgba(220, 38, 38, 0.2) 50%, transparent 70%);
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pulse-container.recording .pulse-ring {
+    animation: pulse-equalizer 1.2s ease-in-out infinite;
+}
+
+.pulse-ring-1 {
+    animation-delay: 0s;
+}
+
+.pulse-ring-2 {
+    width: 85%;
+    height: 85%;
+    animation-delay: 0.2s;
+    background: radial-gradient(circle, rgba(220, 38, 38, 0.5) 0%, rgba(220, 38, 38, 0.15) 50%, transparent 70%);
+}
+
+.pulse-ring-3 {
+    width: 70%;
+    height: 70%;
+    animation-delay: 0.4s;
+    background: radial-gradient(circle, rgba(220, 38, 38, 0.4) 0%, rgba(220, 38, 38, 0.1) 50%, transparent 70%);
+}
+
+@keyframes pulse-equalizer {
+    0%, 100% {
+        transform: scale(0.67);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.core-circle {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(145deg, #dc2626 0%, #b91c1c 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+        0 0 20px rgba(220, 38, 38, 0.4),
+        0 0 40px rgba(220, 38, 38, 0.2),
+        inset 0 -2px 8px rgba(0, 0, 0, 0.3),
+        inset 0 2px 8px rgba(255, 255, 255, 0.2);
+    z-index: 2;
+}
+
+.pulse-container.recording .core-circle {
+    animation: core-glow 1.2s ease-in-out infinite;
+}
+
+@keyframes core-glow {
+    0%, 100% {
+        box-shadow: 
+            0 0 15px rgba(220, 38, 38, 0.4),
+            0 0 30px rgba(220, 38, 38, 0.2),
+            inset 0 -2px 8px rgba(0, 0, 0, 0.3),
+            inset 0 2px 8px rgba(255, 255, 255, 0.2);
+    }
+    50% {
+        box-shadow: 
+            0 0 30px rgba(220, 38, 38, 0.6),
+            0 0 60px rgba(220, 38, 38, 0.4),
+            inset 0 -2px 8px rgba(0, 0, 0, 0.3),
+            inset 0 2px 8px rgba(255, 255, 255, 0.2);
+    }
+}
+
+.microphone-icon-siri {
+    width: 28px;
+    height: 28px;
+    fill: #fff;
+    display: block;
+}
+
+/* Control Button - keeping old one but hidden or repurposed if needed */
+.btn-round {
+    display: none; /* We are replacing it with the pulse container */
+}
+
+/* Mobile Layout */
+@media (max-width: 1024px) {
+    .voice-page-layout {
+        flex-direction: column;
+        overflow: hidden;
+        height: 100%;
+        background: #0a0a0a;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    /* Unwrap panels to reorder children freely */
+    .voice-controls-panel,
+    .voice-chat-panel {
+        display: contents;
+    }
+
+    /* 1. Chat at the top - voice layout overrides for shared chat components */
+    .voice-page-layout .chat-container {
+        order: 1;
+        flex: 1 1 auto;
+        min-height: 0;
+        border: none;
+        background: transparent;
+    }
+
+    .voice-page-layout .chat-header {
+        padding: 0.5rem 1rem; /* Even more compact */
+        border-bottom: 1px solid rgba(220, 38, 38, 0.2);
+        background: rgba(0,0,0,0.3);
+    }
+
+    .voice-page-layout .chat-header h1 {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.7;
+    }
+
+    /* 2. Feedback Text - between chat and visualizer */
+    .response-text-voice {
+        order: 2;
+        flex: 0 0 auto;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0.4rem 1rem;
+        min-height: 32px;
+        font-size: 0.8rem;
+        border-radius: 0;
+        border: none;
+        background: transparent;
+        color: var(--chat-accent);
+        font-weight: 500;
+    }
+
+    /* 3. Visualizer - compact and above microphone */
+    .visualizer-wrapper {
+        order: 3;
+        flex: 0 0 auto;
+        width: 100%;
+        padding: 0.25rem;
+        background: transparent;
+        border: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+    }
+    
+    .voice-visualizer-container {
+        margin: 0;
+        height: 5rem;
+        gap: 6px;
+    }
+
+    .visualizer-bar {
+        width: 8px; /* Even thinner */
+        height: 8px;
+        border-radius: 2px;
+        background: #dc2626;
+        box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+    }
+
+    .visualizer-label {
+        font-size: 0.7rem;
+        color: #444;
+        margin-bottom: 0;
+        letter-spacing: 0.5px;
+    }
+
+    /* 4. Microphone at the bottom - not cut off */
+    .controls {
+        order: 4;
+        flex: 0 0 auto;
+        width: 100%;
+        padding: 0.5rem 0 1rem 0;
+        display: flex;
+        justify-content: center;
+        background: transparent;
+        z-index: 20;
+    }
+
+    .pulse-container {
+        width: 90px; /* Even smaller button */
+        height: 90px;
+        margin: 0;
+    }
+
+    .core-circle {
+        width: 48px; /* Scaled down circle */
+        height: 48px;
+        box-shadow: 
+            0 0 15px rgba(220, 38, 38, 0.3),
+            inset 0 -1px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .microphone-icon-siri {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Text Input Toggle - visible on mobile only */
+    .mobile-only-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-left: 1rem;
+    }
+
+    .keyboard-toggle-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .voice-text-input-area {
+        display: none;
+        position: fixed;
+        bottom: env(safe-area-inset-bottom, 0);
+        left: 0;
+        width: 100%;
+        z-index: 1000;
+        background: #111;
+        border-top: 1px solid var(--chat-accent);
+        padding: 0.75rem;
+    }
+
+    .voice-text-input-area.active {
+        display: flex;
+    }
+}
+
+/* Desktop defaults - mobile media query overrides these */
+.mobile-only-btn {
+    display: none;
+}
+
+.voice-text-input-area {
+    display: flex;
+}

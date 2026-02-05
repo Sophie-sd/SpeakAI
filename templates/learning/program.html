@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/learning.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="learning-program-container">
+    <header class="program-header">
+        <h1>Your Learning Path</h1>
+        <div class="level-controls">
+            <p class="level-badge">Level: {{ user_level }}</p>
+            <a href="{% url 'level_selector' %}" class="btn-change-level">Change Level</a>
+        </div>
+    </header>
+
+    <div class="modules-grid">
+        {% for item in module_progress_list %}
+        <div class="module-card {% if item.progress.status == 'locked' %}locked{% endif %}">
+            <div class="module-card-header">
+                <span class="module-number">Module {{ item.module.module_number }}</span>
+                {% if item.progress.status == 'completed' %}
+                <span class="status-badge completed">✓ Completed</span>
+                {% elif item.progress.status == 'in_progress' %}
+                <span class="status-badge in-progress">In Progress</span>
+                {% elif item.progress.status == 'locked' %}
+                <span class="status-badge locked">🔒 Locked</span>
+                {% else %}
+                <span class="status-badge available">Available</span>
+                {% endif %}
+            </div>
+
+            <h2 class="module-title">{{ item.module.title }}</h2>
+            <p class="module-description">{{ item.module.description|truncatewords:20 }}</p>
+
+            <div class="module-stats">
+                <div class="stat">
+                    <span class="stat-label">Lessons:</span>
+                    <span class="stat-value">{{ item.module.total_lessons }}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Duration:</span>
+                    <span class="stat-value">{{ item.module.estimated_duration_weeks }} weeks</span>
+                </div>
+            </div>
+
+            {% if item.progress.status != 'locked' %}
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ item.progress.progress_percentage }}%"></div>
+            </div>
+            <p class="progress-text">{{ item.progress.progress_percentage|floatformat:0 }}% Complete</p>
+
+            <a href="{% url 'module_detail' item.module.id %}" class="btn-module">
+                {% if item.progress.status == 'completed' %}Review Module{% else %}Continue Learning{% endif %}
+            </a>
+            {% else %}
+            <p class="locked-message">Complete previous modules to unlock</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

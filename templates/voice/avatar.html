@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/voice.css' %}">
+<link rel="stylesheet" href="{% static 'css/chat.css' %}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block container_class %}fullscreen-mode{% endblock %}
+
+{% block content %}
+<div class="voice-page-layout">
+    {# Left panel - 40% with avatar #}
+    <div class="voice-controls-panel">
+        <div class="voice-avatar-wrapper">
+            {% if avatar %}
+                <video id="idle-video" src="{{ avatar.idle_video }}" playsinline loop muted></video>
+                <video id="talking-video" src="{{ avatar.talking_video }}" playsinline loop class="video-hidden"></video>
+            {% else %}
+                <div class="placeholder-avatar">
+                    <div class="avatar-placeholder-text">No Avatar</div>
+                    <p class="avatar-placeholder-hint">Admin should add avatar videos</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="bars-visualizer" class="voice-visualizer-container">
+            <div class="visualizer-bar"></div>
+            <div class="visualizer-bar"></div>
+            <div class="visualizer-bar"></div>
+        </div>
+
+        <div class="controls">
+            <div id="record-btn-avatar" class="pulse-container" title="Утримуйте, щоб говорити">
+                <div class="pulse-ring pulse-ring-1"></div>
+                <div class="pulse-ring pulse-ring-2"></div>
+                <div class="pulse-ring pulse-ring-3"></div>
+                <div class="core-circle">
+                    <svg class="microphone-icon-siri" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" fill="white"/>
+                        <path d="M17 11c0 2.76-2.54 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" fill="white"/>
+                    </svg>
+                </div>
+            </div>
+            <button id="keyboard-toggle-btn" class="keyboard-toggle-btn mobile-only-btn" title="Клавіатура">
+                <svg viewBox="0 0 24 24" fill="white">
+                    <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 7h-2v-2h2v2zm0-4h-2v-2h2v2z"/>
+                </svg>
+            </button>
+        </div>
+        
+        <div id="response-text-avatar" class="response-text-voice"></div>
+    </div>
+
+    {# Right panel - 60% chat #}
+    <div class="voice-chat-panel">
+        <div class="chat-container" data-session-id="{{ session.id }}" data-send-url="{% url 'send_message' %}">
+            <div class="chat-header">
+                <h1>🎭 AI Аватар</h1>
+            </div>
+            {% include 'chat/partials/chat_panel.html' with messages=messages %}
+
+            <form id="voice-text-form" class="chat-input-area voice-text-input-area">
+                {% csrf_token %}
+                <textarea id="voice-text-input" name="text" placeholder="Напишіть повідомлення..." required></textarea>
+                <button type="submit" class="btn-send">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/recorder.js' %}"></script>
+<script src="{% static 'js/bars-visualizer.js' %}"></script>
+<script src="{% static 'js/button-visualizer.js' %}"></script>
+<script src="{% static 'js/avatar.js' %}"></script>
+<script src="{% static 'js/chat.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const recorder = new VoiceRecorder();
+        const barsVisualizer = new BarsVisualizer('bars-visualizer');
+        const buttonVisualizer = new ButtonVisualizer(document.getElementById('record-btn-avatar'));
+        const avatarCtrl = new AvatarController('idle-video', 'talking-video');
+        const recordBtn = document.getElementById('record-btn-avatar');
+        const responseText = document.getElementById('response-text-avatar');
+        const chatHistory = document.getElementById('chat-history');
+        const voiceTextForm = document.getElementById('voice-text-form');
+        const keyboardToggleBtn = document.getElementById('keyboard-toggle-btn');
+        const voiceTextInput = document.getElementById('voice-text-input');
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        /**
+         * Simple message adder - fetches HTML from server
+         * This ensures single source of truth for message rendering
+         */
+        async function addMessageToChat(messageId) {
+            try {
+                const response = await fetch(`/voice/render-message/${messageId}/`);
+                if (!response.ok) throw new Error('Failed to fetch message');
+                
+                const html = await response.text();
+                chatHistory.insertAdjacentHTML('beforeend', html);
+                
+                // Process HTMX for new elements
+                if (window.htmx) {
+                    htmx.process(chatHistory.lastElementChild);
+                }
+                
+                // Scroll to bottom
+                if (window.chatUtils) {
+                    window.chatUtils.scrollToBottom();
+                } else {
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }
+            } catch (err) {
+                console.error('Error adding message to chat:', err);
+            }
+        }
+
+        /**
+         * Simple user message creator
+         */
+        function addUserMessage(content) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper sent';
+            wrapper.setAttribute('data-message-id', 'temp-' + Math.random().toString(36).substr(2, 9));
+            
+            const now = new Date();
+            const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            
+            wrapper.innerHTML = `
+                <div class="avatar">Я</div>
+                <div class="message sent">
+                    <div class="content">${escapeHtml(content)}</div>
+                    <div class="meta">
+                        <span class="time">${timeStr}</span>
+                        <span class="status">
+                            <svg class="status-icon" viewBox="0 0 24 24">
+                                <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z" />
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+            `;
+            
+            chatHistory.appendChild(wrapper);
+            
+            if (window.chatUtils) {
+                window.chatUtils.scrollToBottom();
+            } else {
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+
+        const startRecording = async (e) => {
+            if (e) e.preventDefault();
+            const stream = await recorder.start();
+            if (stream) {
+                buttonVisualizer.connectStream(stream);
+                recordBtn.classList.add('recording');
+            }
+        };
+
+        const stopRecording = async (e) => {
+            if (e) e.preventDefault();
+            if (!recorder.isRecording) return;
+            recorder.stop();
+            buttonVisualizer.stop();
+            recordBtn.classList.remove('recording');
+        };
+
+        recordBtn.addEventListener('mousedown', startRecording);
+        recordBtn.addEventListener('mouseup', stopRecording);
+        recordBtn.addEventListener('mouseleave', stopRecording);
+        
+        recordBtn.addEventListener('touchstart', startRecording);
+        recordBtn.addEventListener('touchend', stopRecording);
+
+        // Toggle Keyboard on Mobile
+        keyboardToggleBtn.addEventListener('click', () => {
+            voiceTextForm.classList.toggle('active');
+            if (voiceTextForm.classList.contains('active')) {
+                voiceTextInput.focus();
+            }
+        });
+
+        // Handle Text Input Submission
+        voiceTextForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = voiceTextInput.value.trim();
+            if (!text) return;
+
+            voiceTextInput.value = "";
+            voiceTextForm.classList.remove('active');
+            
+            addUserMessage(text);
+            responseText.innerText = "🤔 Обробляю...";
+
+            try {
+                const formData = new FormData();
+                formData.append('text', text);
+                
+                const response = await fetch('/voice/process-text/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    }
+                });
+                const data = await response.json();
+                
+                responseText.innerText = "";
+
+                if (data.message_id) {
+                    await addMessageToChat(data.message_id);
+                }
+
+                if (data.audio_url) {
+                    const audio = new Audio(data.audio_url);
+                    barsVisualizer.connectAudioElement(audio);
+                    audio.play();
+                    avatarCtrl.startTalking();
+
+                    audio.onended = () => {
+                        avatarCtrl.stopTalking();
+                        barsVisualizer.stop();
+                    };
+                }
+            } catch (err) {
+                console.error(err);
+                responseText.innerText = "Error processing request";
+            }
+        });
+
+        document.addEventListener('recording-finished', async (e) => {
+            const audioBlob = e.detail;
+            if (audioBlob.size < 1000) return;
+
+            const formData = new FormData();
+            formData.append('audio', audioBlob);
+
+            responseText.innerText = "🤔 Обробляю...";
+
+            try {
+                const response = await fetch('/voice/process/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    }
+                });
+                const data = await response.json();
+
+                responseText.innerText = "";
+
+                // Add user message to chat history
+                if (data.transcript) {
+                    addUserMessage(data.transcript);
+                }
+
+                // Add AI message to chat history
+                if (data.message_id) {
+                    await addMessageToChat(data.message_id);
+                }
+
+                if (data.audio_url) {
+                    const audio = new Audio(data.audio_url);
+                    barsVisualizer.connectAudioElement(audio);
+                    audio.play();
+                    avatarCtrl.startTalking();
+
+                    audio.onended = () => {
+                        avatarCtrl.stopTalking();
+                        barsVisualizer.stop();
+                    };
+                }
+            } catch (err) {
+                console.error(err);
+                responseText.innerText = "Error processing request";
+            }
+        });
+    });
+
+    // Utility function to escape HTML
+    function escapeHtml(unsafe) {
+        if (!unsafe) return "";
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+</script>
+{% endblock %}

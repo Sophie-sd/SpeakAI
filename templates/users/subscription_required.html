@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/subscription.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="subscription-required-container">
+    <div class="subscription-card">
+        <h1>Premium Features Locked</h1>
+        <p>This feature is only available for premium subscribers.</p>
+
+        <div class="features-comparison">
+            <h2>Choose Your Plan</h2>
+
+            <div class="plan-free">
+                <h3>Free</h3>
+                <ul>
+                    <li>✓ Text chat with AI tutor</li>
+                    <li>✓ Grammar corrections</li>
+                    <li>✓ Basic vocabulary</li>
+                    <li>✗ Voice practice</li>
+                    <li>✗ Role-play scenarios</li>
+                    <li>✗ Structured lessons</li>
+                    <li>✗ Progress tracking</li>
+                </ul>
+                <button class="btn-free" disabled>You are on Free Plan</button>
+            </div>
+
+            <div class="plan-premium">
+                <h3>Premium</h3>
+                <div class="badge-popular">Most Popular</div>
+                <ul>
+                    <li>✓ Text chat with AI tutor</li>
+                    <li>✓ Grammar corrections</li>
+                    <li>✓ Basic vocabulary</li>
+                    <li>✓ Voice practice</li>
+                    <li>✓ Role-play scenarios</li>
+                    <li>✓ Structured lessons</li>
+                    <li>✓ Progress tracking</li>
+                </ul>
+                <a href="#contact-admin" class="btn-premium">Upgrade to Premium</a>
+            </div>
+        </div>
+
+        <div id="contact-admin" class="contact-section">
+            <h3>Get Premium Access</h3>
+            <p>Contact us to upgrade your subscription</p>
+            <a href="mailto:support@example.com" class="btn-secondary">Contact Support</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

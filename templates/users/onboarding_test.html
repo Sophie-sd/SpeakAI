@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/subscription.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="onboarding-container">
+    <div class="onboarding-card">
+        <h1>Welcome to AI English Tutor</h1>
+        <p class="subtitle">Let's personalize your learning experience</p>
+
+        <form method="post" class="onboarding-form">
+            {% csrf_token %}
+
+            <div class="form-section">
+                <h2>What is your English level?</h2>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="A0" required>
+                        <span>A0 - Starter (Complete beginner)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="A1" required>
+                        <span>A1 - Beginner (I know a few words)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="A2" required>
+                        <span>A2 - Elementary (I can hold basic conversations)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="B1" required>
+                        <span>B1 - Intermediate (I can discuss various topics)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="B2" required>
+                        <span>B2 - Upper Intermediate (I'm quite fluent)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="C1" required>
+                        <span>C1 - Advanced (I speak fluently)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="level" value="C2" required>
+                        <span>C2 - Proficient (Nearly native speaker)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>What are your learning goals?</h2>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goal" value="conversation">
+                        <span>Improve conversation skills</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goal" value="grammar">
+                        <span>Master grammar rules</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goal" value="vocabulary">
+                        <span>Expand vocabulary</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goal" value="pronunciation">
+                        <span>Improve pronunciation</span>
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="goal" value="exam">
+                        <span>Prepare for an exam</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>How often can you practice?</h2>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="frequency" value="daily" required>
+                        <span>Daily (30-60 min)</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="frequency" value="3-4times" required>
+                        <span>3-4 times per week</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="frequency" value="2times" required>
+                        <span>2 times per week</span>
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="frequency" value="weekly" required>
+                        <span>Once a week</span>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-start">Start Learning</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

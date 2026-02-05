@@ -1,0 +1,53 @@
+{% load pwa %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>AI English Tutor</title>
+    {% progressive_web_app_meta %}
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <div class="csrf-token-holder">{% csrf_token %}</div>
+    <script>
+        document.body.addEventListener('htmx:configRequest', function(event) {
+            const token = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+            if (token) {
+                event.detail.headers['X-CSRFToken'] = token;
+            }
+        });
+    </script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <header class="app-header">
+        <a href="{% url 'home' %}" class="logo">AI Tutor</a>
+        <nav>
+            {% if user.is_authenticated %}
+                <div class="nav-links">
+                    <a href="{% url 'chat' %}" class="nav-link">💬 Текст</a>
+                    {% if user.is_paid %}
+                    <a href="{% url 'learning_program' %}" class="nav-link">📚 Програма</a>
+                    {% endif %}
+                    <a href="{% url 'voice_mode' %}" class="nav-link">🎤 Голос</a>
+                    <a href="{% url 'avatar_mode' %}" class="nav-link">🎭 Аватар</a>
+                </div>
+                <span class="user-info">{{ user.username }} [{{ user.level }}]</span>
+                <form action="{% url 'logout' %}" method="post" class="logout-form">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-small">Logout</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}">Login</a>
+                <a href="{% url 'register' %}">Register</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main class="app-container {% block container_class %}{% endblock %}">
+        {% block content %}{% endblock %}
+    </main>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

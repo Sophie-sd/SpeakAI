@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/learning.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="lesson-container">
+    <div class="lesson-navigation">
+        <a href="{% url 'learning_program' %}" class="nav-btn">← Back to Program</a>
+    </div>
+
+    <header class="lesson-header">
+        <span class="lesson-number">Module {{ module.module_number }}</span>
+        <h1>{{ module.title }}</h1>
+        <p class="lesson-description">{{ module.description }}</p>
+
+        <div class="lesson-meta">
+            <span class="meta-item">📚 {{ module.total_lessons }} lessons</span>
+            <span class="meta-item">⏱ {{ module.estimated_duration_weeks }} weeks</span>
+        </div>
+    </header>
+
+    <!-- Progress Overview -->
+    <div class="progress-overview">
+        <h3>Module Progress</h3>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ module_progress.progress_percentage }}%"></div>
+        </div>
+        <p class="progress-text">{{ module_progress.lessons_completed }}/{{ module_progress.lessons_total }} lessons
+            completed</p>
+    </div>
+
+    <!-- Lessons List -->
+    <div class="lessons-list">
+        <h2>Lessons</h2>
+        {% for item in lesson_progress_list %}
+        <div class="lesson-item">
+            <div class="lesson-item-header">
+                <div>
+                    <h3>Lesson {{ item.lesson.lesson_number }}: {{ item.lesson.title }}</h3>
+                    <p class="lesson-item-description">{{ item.lesson.description }}</p>
+                    <div class="lesson-item-meta">
+                        <span>Grammar: {{ item.lesson.grammar_focus }}</span>
+                        <span>Words: {{ item.lesson.vocabulary_count }}</span>
+                        <span>Duration: {{ item.lesson.estimated_duration_minutes }} min</span>
+                    </div>
+                </div>
+                <div class="lesson-item-status">
+                    {% if item.progress.status == 'completed' %}
+                    <span class="status-badge-completed">✓ Completed</span>
+                    {% elif item.progress.status == 'in_progress' %}
+                    <span class="status-badge-progress">In Progress</span>
+                    {% else %}
+                    <span class="status-badge-notstarted">Not Started</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="lesson-item-action">
+                <a href="{% url 'lesson_detail' item.lesson.id %}" class="btn-start-lesson">
+                    Start Lesson →
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

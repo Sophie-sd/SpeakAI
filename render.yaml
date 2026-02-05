@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: ai-english-tutor
+    env: python
+    plan: starter
+    buildCommand: bash build.sh
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: ALLOWED_HOSTS
+        value: "ai-english-tutor.onrender.com"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-english-tutor-db
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+
+databases:
+  - name: ai-english-tutor-db
+    engine: postgres
+    ipAllowList: []
+    plan: starter

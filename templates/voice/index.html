@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/voice.css' %}">
+<link rel="stylesheet" href="{% static 'css/chat.css' %}">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block container_class %}fullscreen-mode{% endblock %}
+
+{% block content %}
+<div class="voice-page-layout">
+    {# Left panel - 40% with avatar #}
+    <div class="voice-controls-panel">
+        <div class="voice-avatar-wrapper">
+            {% if avatar %}
+                <video id="idle-video" src="{{ avatar.idle_video }}" playsinline loop muted></video>
+                <video id="talking-video" src="{{ avatar.talking_video }}" playsinline loop class="video-hidden"></video>
+            {% else %}
+                <div class="placeholder-avatar">
+                    <div class="avatar-placeholder-text">No Avatar</div>
+                    <p class="avatar-placeholder-hint">Admin should add avatar videos</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <canvas id="visualizer" width="300" height="100" class="voice-visualizer"></canvas>
+
+        <div class="controls">
+            <button id="record-btn" class="btn-round" title="Утримуйте, щоб говорити">
+                <span class="mic-icon">🎤</span>
+            </button>
+        </div>
+        
+        <div id="response-text" class="response-text"></div>
+    </div>
+
+    {# Right panel - 60% chat #}
+    <div class="voice-chat-panel">
+        {% include 'chat/partials/chat_panel.html' with messages=messages %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/recorder.js' %}"></script>
+<script src="{% static 'js/visualizer.js' %}"></script>
+<script src="{% static 'js/avatar.js' %}"></script>
+<script src="{% static 'js/chat.js' %}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+        
+        const recorder = new VoiceRecorder();
+        const visualizer = new AudioVisualizer('visualizer');
+        const avatarCtrl = new AvatarController('idle-video', 'talking-video');
+        const recordBtn = document.getElementById('record-btn');
+        const responseText = document.getElementById('response-text');
+        const chatHistory = document.getElementById('chat-history');
+
+        function createMessageElement(role, content, audioUrl = null) {
+            const now = new Date();
+            const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = `message-wrapper ${role === 'user' ? 'sent' : ''}`;
+            
+            let innerHTML = `
+                <div class="avatar ${role === 'model' ? 'received-avatar' : ''}">
+                    ${role === 'user' ? 'Я' : 'A'}
+                </div>
+                <div class="message ${role === 'user' ? 'sent' : 'received'}">
+                    <div class="content">${escapeHtml(content)}</div>
+            `;
+            
+            if (audioUrl) {
+                innerHTML += `
+                    <audio class="message-audio" controls>
+                        <source src="${audioUrl}" type="audio/mpeg">
+                    </audio>
+                `;
+            }
+            
+            innerHTML += `
+                    <div class="meta">
+                        <span class="time">${timeStr}</span>
+                        ${role === 'user' ? `
+                        <span class="status">
+                            <svg class="status-icon" viewBox="0 0 24 24">
+                                <path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z" />
+                            </svg>
+                        </span>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            wrapper.innerHTML = innerHTML;
+            return wrapper;
+        }
+
+        recordBtn.addEventListener('mousedown', async () => {
+            const stream = await recorder.start();
+            if (stream) {
+                 visualizer.connectStream(stream);
+                 recordBtn.classList.add('recording');
+            }
+        });
+
+        const stopRecording = async () => {
+            if (!recorder.isRecording) return;
+            recorder.stop();
+            recordBtn.classList.remove('recording');
+        };
+
+        recordBtn.addEventListener('mouseup', stopRecording);
+        recordBtn.addEventListener('mouseleave', stopRecording);
+        recordBtn.addEventListener('touchstart', async (e) => {
+            e.preventDefault();
+            const stream = await recorder.start();
+            if (stream) {
+                visualizer.connectStream(stream);
+                recordBtn.classList.add('recording');
+            }
+        });
+        recordBtn.addEventListener('touchend', stopRecording);
+
+        document.addEventListener('recording-finished', async (e) => {
+            const audioBlob = e.detail;
+            if (audioBlob.size < 1000) return;
+
+            const formData = new FormData();
+            formData.append('audio', audioBlob);
+            
+            responseText.innerText = "🤔 Обробляю...";
+            
+            try {
+                const response = await fetch('/voice/process/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    }
+                });
+                const data = await response.json();
+                
+                responseText.innerText = "";
+
+                // Add user message to chat history
+                if (data.transcript) {
+                    chatHistory.appendChild(createMessageElement('user', data.transcript));
+                }
+
+                // Add AI message to chat history
+                if (data.text) {
+                    chatHistory.appendChild(createMessageElement('model', data.text, data.audio_url));
+                }
+                
+                if (data.audio_url) {
+                    const audio = new Audio(data.audio_url);
+                    visualizer.connectAudioElement(audio);
+                    audio.play();
+                    avatarCtrl.startTalking();
+                    
+                    audio.onended = () => {
+                        avatarCtrl.stopTalking();
+                    };
+                }
+
+                // Auto-scroll to bottom
+                if (window.chatUtils) {
+                    window.chatUtils.scrollToBottom();
+                } else {
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }
+            } catch (err) {
+                console.error(err);
+                responseText.innerText = "Error processing request";
+            }
+        });
+    });
+
+    // Utility function to escape HTML
+    function escapeHtml(unsafe) {
+        if (!unsafe) return "";
+        return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+</script>
+{% endblock %}
